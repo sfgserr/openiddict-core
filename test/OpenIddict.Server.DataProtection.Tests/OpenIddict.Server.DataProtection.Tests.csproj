@@ -5,12 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Moq" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <ProjectReference Include="..\..\src\OpenIddict.Server.DataProtection\OpenIddict.Server.DataProtection.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\OpenIddict.Server.DataProtection\OpenIddict.Server.DataProtection.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Moq" />
   </ItemGroup>
 
   <ItemGroup>

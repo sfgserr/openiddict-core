@@ -14,8 +14,7 @@ namespace OpenIddict.Server.Owin;
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class OpenIddictServerOwinConfiguration : IConfigureOptions<OpenIddictServerOptions>,
-                                                        IPostConfigureOptions<OpenIddictServerOptions>,
-                                                        IPostConfigureOptions<OpenIddictServerOwinOptions>
+                                                        IPostConfigureOptions<OpenIddictServerOptions>
 {
     /// <inheritdoc/>
     public void Configure(OpenIddictServerOptions options)
@@ -44,17 +43,6 @@ public sealed class OpenIddictServerOwinConfiguration : IConfigureOptions<OpenId
         if (options.SelfSignedTlsClientAuthenticationPolicy is not null)
         {
             options.ClientAuthenticationMethods.Add(ClientAuthenticationMethods.SelfSignedTlsClientAuth);
-        }
-    }
-
-    /// <inheritdoc/>
-    public void PostConfigure(string? name, OpenIddictServerOwinOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        if (options.AuthenticationMode is AuthenticationMode.Active)
-        {
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0119));
         }
     }
 }

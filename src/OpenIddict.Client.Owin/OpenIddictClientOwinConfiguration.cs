@@ -7,6 +7,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Owin;
 
 namespace OpenIddict.Client.Owin;
@@ -16,7 +17,9 @@ namespace OpenIddict.Client.Owin;
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class OpenIddictClientOwinConfiguration : IConfigureOptions<OpenIddictClientOptions>,
-                                                        IPostConfigureOptions<OpenIddictClientOwinOptions>
+                                                        IPostConfigureOptions<OpenIddictClientOwinOptions>,
+                                                        IValidateOptions<OpenIddictClientOwinOptions>,
+                                                        IOptionsChangeTokenSource<OpenIddictClientOwinOptions>
 {
     private readonly IServiceProvider _provider;
 
@@ -53,11 +56,6 @@ public sealed class OpenIddictClientOwinConfiguration : IConfigureOptions<OpenId
             _ => new CookieManager()
         };
 
-        if (options.AuthenticationMode is AuthenticationMode.Active)
-        {
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0314));
-        }
-
         if (!options.DisableAutomaticAuthenticationTypeForwarding)
         {
             foreach (var (provider, registrations) in _provider.GetRequiredService<IOptionsMonitor<OpenIddictClientOptions>>()
@@ -73,11 +71,9 @@ public sealed class OpenIddictClientOwinConfiguration : IConfigureOptions<OpenId
                     continue;
                 }
 
-                // Ensure multiple client registrations don't share the same provider
-                // name when automatic authentication type forwarding is enabled.
                 if (registrations is not [OpenIddictClientRegistration registration])
                 {
-                    throw new InvalidOperationException(SR.FormatID0416(provider));
+                    continue;
                 }
 
                 var description = new AuthenticationDescription
@@ -98,4 +94,40 @@ public sealed class OpenIddictClientOwinConfiguration : IConfigureOptions<OpenId
             }
         }
     }
+
+    /// <inheritdoc/>
+    public ValidateOptionsResult Validate(string? name, OpenIddictClientOwinOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var builder = new ValidateOptionsResultBuilder();
+
+        // Ensure multiple client registrations don't share the same provider
+        // name when automatic authentication type forwarding is enabled.
+        if (!options.DisableAutomaticAuthenticationTypeForwarding)
+        {
+            foreach (var (provider, registrations) in _provider.GetRequiredService<IOptionsMonitor<OpenIddictClientOptions>>()
+                .CurrentValue.Registrations
+                .Where(static registration => !string.IsNullOrEmpty(registration.ProviderName))
+                .GroupBy(static registration => registration.ProviderName)
+                .Select(static group => (ProviderName: group.Key, Registrations: group.ToList()))
+                .Where(static group => group.Registrations.Count is > 1))
+            {
+                builder.AddError(SR.FormatID0416(provider));
+            }
+        }
+
+        return builder.Build();
+    }
+
+    /// <inheritdoc/>
+    IChangeToken IOptionsChangeTokenSource<OpenIddictClientOwinOptions>.GetChangeToken() => new CompositeChangeToken(
+    [
+        // Force the options to be re-evaluated when the related instances from which they are populated are changed.
+        .. from source in _provider.GetServices<IOptionsChangeTokenSource<OpenIddictClientOptions>>()
+           select source.GetChangeToken()
+    ]);
+
+    /// <inheritdoc/>
+    string? IOptionsChangeTokenSource<OpenIddictClientOwinOptions>.Name => Options.DefaultName;
 }
