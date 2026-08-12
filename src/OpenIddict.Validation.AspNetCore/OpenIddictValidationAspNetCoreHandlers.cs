@@ -23,7 +23,7 @@ using Properties = OpenIddict.Validation.AspNetCore.OpenIddictValidationAspNetCo
 namespace OpenIddict.Validation.AspNetCore;
 
 [EditorBrowsable(EditorBrowsableState.Never)]
-public static partial class OpenIddictValidationAspNetCoreHandlers
+public static class OpenIddictValidationAspNetCoreHandlers
 {
     public static ImmutableArray<OpenIddictValidationHandlerDescriptor> DefaultHandlers { get; } =
     [
@@ -85,8 +85,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // OpenIddict supports both absolute and relative URIs for all its endpoints, but only absolute
             // URIs can be properly canonicalized by the BCL System.Uri class (e.g './path/../' is normalized
@@ -135,8 +135,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Don't require that a Host header be present if the issuer was set in the options.
             if (context.Options.Issuer is null && !request.Host.HasValue)
@@ -185,8 +185,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Resolve the access token from the standard Authorization header.
             // See https://tools.ietf.org/html/rfc6750#section-2.1 for more information.
@@ -234,8 +234,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             if (string.IsNullOrEmpty(request.ContentType) ||
                 !request.ContentType.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
@@ -287,8 +287,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Resolve the access token from the standard access_token query parameter.
             // See https://tools.ietf.org/html/rfc6750#section-2.3 for more information.
@@ -327,12 +327,12 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // If a client certificate was used during the TLS handshake, attach it to the context.
             if (request.IsHttps && await request.HttpContext.Connection.GetClientCertificateAsync(
-                request.HttpContext.RequestAborted) is X509Certificate2 certificate)
+                context.CancellationToken) is X509Certificate2 certificate)
             {
                 context.Transaction.RemoteCertificate = certificate;
             }
@@ -460,8 +460,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             response.StatusCode = context.Transaction.Response.Error switch
             {
@@ -505,8 +505,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Prevent the response from being cached.
             response.Headers[HeaderNames.CacheControl] = "no-store";
@@ -548,8 +548,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             if (string.IsNullOrEmpty(context.Transaction.Response.Error))
             {
@@ -601,7 +601,7 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
                 builder.Append(parameter.Key);
                 builder.Append('=');
                 builder.Append('"');
-                builder.Append(parameter.Value.Replace("\"", "\\\""));
+                builder.Append(parameter.Value.Replace("\"", "\\\"", StringComparison.Ordinal));
                 builder.Append('"');
                 builder.Append(',');
             }
@@ -642,8 +642,8 @@ public static partial class OpenIddictValidationAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // If the response doesn't contain a WWW-Authenticate header, don't return an empty response.
             if (!response.Headers.ContainsKey(HeaderNames.WWWAuthenticate))

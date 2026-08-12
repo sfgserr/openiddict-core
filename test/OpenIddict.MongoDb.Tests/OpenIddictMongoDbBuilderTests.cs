@@ -39,7 +39,7 @@ public class OpenIddictMongoDbBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictApplicationStore<CustomApplication>) &&
             service.ImplementationType == typeof(OpenIddictMongoDbApplicationStore<CustomApplication>));
     }
@@ -56,9 +56,26 @@ public class OpenIddictMongoDbBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictAuthorizationStore<CustomAuthorization>) &&
             service.ImplementationType == typeof(OpenIddictMongoDbAuthorizationStore<CustomAuthorization>));
+    }
+
+    [Fact]
+    public void ReplaceDefaultResourceEntity_StoreIsCorrectlyReplaced()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.ReplaceDefaultResourceEntity<CustomResource>();
+
+        // Assert
+        Assert.Contains(services, service =>
+            service.Lifetime is ServiceLifetime.Scoped &&
+            service.ServiceType == typeof(IOpenIddictResourceStore<CustomResource>) &&
+            service.ImplementationType == typeof(OpenIddictMongoDbResourceStore<CustomResource>));
     }
 
     [Fact]
@@ -73,9 +90,26 @@ public class OpenIddictMongoDbBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictScopeStore<CustomScope>) &&
             service.ImplementationType == typeof(OpenIddictMongoDbScopeStore<CustomScope>));
+    }
+
+    [Fact]
+    public void ReplaceDefaultSessionEntity_StoreIsCorrectlyReplaced()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.ReplaceDefaultSessionEntity<CustomSession>();
+
+        // Assert
+        Assert.Contains(services, service =>
+            service.Lifetime is ServiceLifetime.Scoped &&
+            service.ServiceType == typeof(IOpenIddictSessionStore<CustomSession>) &&
+            service.ImplementationType == typeof(OpenIddictMongoDbSessionStore<CustomSession>));
     }
 
     [Fact]
@@ -90,7 +124,7 @@ public class OpenIddictMongoDbBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictTokenStore<CustomToken>) &&
             service.ImplementationType == typeof(OpenIddictMongoDbTokenStore<CustomToken>));
     }
@@ -162,6 +196,38 @@ public class OpenIddictMongoDbBuilderTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    public void SetResourcesCollectionName_ThrowsAnExceptionForNullOrEmptyCollectionName(string? name)
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act and assert
+        var exception = Assert.ThrowsAny<ArgumentException>(() => builder.SetResourcesCollectionName(name!));
+
+        Assert.Equal("name", exception.ParamName);
+    }
+
+    [Fact]
+    public void SetResourcesCollectionName_CollectionNameIsCorrectlySet()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.SetResourcesCollectionName("custom_collection");
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<OpenIddictMongoDbOptions>>().CurrentValue;
+
+        Assert.Equal("custom_collection", options.ResourcesCollectionName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
     public void SetScopesCollectionName_ThrowsAnExceptionForNullOrEmptyCollectionName(string? name)
     {
         // Arrange
@@ -189,6 +255,38 @@ public class OpenIddictMongoDbBuilderTests
         var options = provider.GetRequiredService<IOptionsMonitor<OpenIddictMongoDbOptions>>().CurrentValue;
 
         Assert.Equal("custom_collection", options.ScopesCollectionName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void SetSessionsCollectionName_ThrowsAnExceptionForNullOrEmptyCollectionName(string? name)
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act and assert
+        var exception = Assert.ThrowsAny<ArgumentException>(() => builder.SetSessionsCollectionName(name!));
+
+        Assert.Equal("name", exception.ParamName);
+    }
+
+    [Fact]
+    public void SetSessionsCollectionName_CollectionNameIsCorrectlySet()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.SetSessionsCollectionName("custom_collection");
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<OpenIddictMongoDbOptions>>().CurrentValue;
+
+        Assert.Equal("custom_collection", options.SessionsCollectionName);
     }
 
     [Theory]
@@ -268,8 +366,10 @@ public class OpenIddictMongoDbBuilderTests
         return services;
     }
 
-    public class CustomApplication : OpenIddictMongoDbApplication { }
-    public class CustomAuthorization : OpenIddictMongoDbAuthorization { }
-    public class CustomScope : OpenIddictMongoDbScope { }
-    public class CustomToken : OpenIddictMongoDbToken { }
+    public class CustomApplication : OpenIddictMongoDbApplication;
+    public class CustomAuthorization : OpenIddictMongoDbAuthorization;
+    public class CustomResource : OpenIddictMongoDbResource;
+    public class CustomScope : OpenIddictMongoDbScope;
+    public class CustomSession : OpenIddictMongoDbSession;
+    public class CustomToken : OpenIddictMongoDbToken;
 }

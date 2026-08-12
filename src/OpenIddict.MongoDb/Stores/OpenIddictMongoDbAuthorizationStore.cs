@@ -32,7 +32,7 @@ public class OpenIddictMongoDbAuthorizationStore : OpenIddictMongoDbAuthorizatio
 /// <summary>
 /// Provides methods allowing to manage the authorizations stored in a database.
 /// </summary>
-/// <typeparam name="TAuthorization">The type of the Authorization entity.</typeparam>
+/// <typeparam name="TAuthorization">The type of the authorization entity.</typeparam>
 public class OpenIddictMongoDbAuthorizationStore<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAuthorization> : IOpenIddictAuthorizationStore<TAuthorization>
     where TAuthorization : OpenIddictMongoDbAuthorization
@@ -100,7 +100,7 @@ public class OpenIddictMongoDbAuthorizationStore<
             entity.Id == authorization.Id &&
             entity.ConcurrencyToken == authorization.ConcurrencyToken, cancellationToken)).DeletedCount is 0)
         {
-            throw new ConcurrencyException(SR.GetResourceString(SR.ID0241));
+            throw new ConcurrencyException(SR.GetResourceString(SR.ID0239));
         }
 
         // Delete the tokens associated with the authorization.
@@ -110,43 +110,40 @@ public class OpenIddictMongoDbAuthorizationStore<
 
     /// <inheritdoc/>
     public virtual async IAsyncEnumerable<TAuthorization> FindAsync(
-        string? subject, string? client,
-        string? status, string? type,
-        ImmutableArray<string>? scopes, [EnumeratorCancellation] CancellationToken cancellationToken)
+        (string? Subject, string? ApplicationId, string? Status,
+         string? Type, ImmutableArray<string>? RequiredScopes) query, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var database = await Context.GetDatabaseAsync(cancellationToken);
         var collection = database.GetCollection<TAuthorization>(Options.CurrentValue.AuthorizationsCollectionName);
 
-        IQueryable<TAuthorization> query = collection.AsQueryable();
+        IQueryable<TAuthorization> authorizations = collection.AsQueryable();
 
-        if (!string.IsNullOrEmpty(subject))
+        if (!string.IsNullOrEmpty(query.Subject))
         {
-            query = query.Where(authorization => authorization.Subject == subject);
+            authorizations = authorizations.Where(authorization => authorization.Subject == query.Subject);
         }
 
-        if (!string.IsNullOrEmpty(client))
+        if (!string.IsNullOrEmpty(query.ApplicationId))
         {
-            query = query.Where(authorization => authorization.ApplicationId == ObjectId.Parse(client));
+            authorizations = authorizations.Where(authorization => authorization.ApplicationId == ObjectId.Parse(query.ApplicationId));
         }
 
-        if (!string.IsNullOrEmpty(status))
+        if (!string.IsNullOrEmpty(query.Status))
         {
-            query = query.Where(authorization => authorization.Status == status);
+            authorizations = authorizations.Where(authorization => authorization.Status == query.Status);
         }
 
-        if (!string.IsNullOrEmpty(type))
+        if (!string.IsNullOrEmpty(query.Type))
         {
-            query = query.Where(authorization => authorization.Type == type);
+            authorizations = authorizations.Where(authorization => authorization.Type == query.Type);
         }
 
-        if (scopes is ImmutableArray<string> values)
+        if (query.RequiredScopes is { IsDefaultOrEmpty: false } scopes)
         {
-            // Note: Enumerable.All() is deliberately used without the extension method syntax to ensure
-            // ImmutableArrayExtensions.All() (which is not supported by MongoDB) is not used instead.
-            query = query.Where(authorization => Enumerable.All(values, scope => authorization.Scopes!.Contains(scope)));
+            authorizations = authorizations.Where(authorization => scopes.All(scope => authorization.Scopes!.Contains(scope)));
         }
 
-        await foreach (var authorization in query.ToAsyncEnumerable(cancellationToken))
+        await foreach (var authorization in authorizations.ToAsyncEnumerable().WithCancellation(cancellationToken))
         {
             yield return authorization;
         }
@@ -166,7 +163,7 @@ public class OpenIddictMongoDbAuthorizationStore<
             var collection = database.GetCollection<TAuthorization>(Options.CurrentValue.AuthorizationsCollectionName);
 
             await foreach (var authorization in collection.Find(authorization =>
-                authorization.ApplicationId == ObjectId.Parse(identifier)).ToAsyncEnumerable(cancellationToken))
+                authorization.ApplicationId == ObjectId.Parse(identifier)).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return authorization;
             }
@@ -199,7 +196,7 @@ public class OpenIddictMongoDbAuthorizationStore<
             var collection = database.GetCollection<TAuthorization>(Options.CurrentValue.AuthorizationsCollectionName);
 
             await foreach (var authorization in collection.Find(authorization =>
-                authorization.Subject == subject).ToAsyncEnumerable(cancellationToken))
+                authorization.Subject == subject).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return authorization;
             }
@@ -211,12 +208,7 @@ public class OpenIddictMongoDbAuthorizationStore<
     {
         ArgumentNullException.ThrowIfNull(authorization);
 
-        if (authorization.ApplicationId == ObjectId.Empty)
-        {
-            return new(result: null);
-        }
-
-        return new(authorization.ApplicationId.ToString());
+        return new(authorization.ApplicationId != ObjectId.Empty ? authorization.ApplicationId.ToString() : null);
     }
 
     /// <inheritdoc/>
@@ -237,12 +229,7 @@ public class OpenIddictMongoDbAuthorizationStore<
     {
         ArgumentNullException.ThrowIfNull(authorization);
 
-        if (authorization.CreationDate is null)
-        {
-            return new(result: null);
-        }
-
-        return new(DateTime.SpecifyKind(authorization.CreationDate.Value, DateTimeKind.Utc));
+        return new(authorization.CreationDate is DateTime date ? new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)) : null);
     }
 
     /// <inheritdoc/>
@@ -260,11 +247,11 @@ public class OpenIddictMongoDbAuthorizationStore<
 
         if (authorization.Properties is null)
         {
-            return new(ImmutableDictionary.Create<string, JsonElement>());
+            return new([]);
         }
 
         using var document = JsonDocument.Parse(authorization.Properties.ToJson());
-        var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>();
+        var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>(StringComparer.Ordinal);
 
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -279,12 +266,7 @@ public class OpenIddictMongoDbAuthorizationStore<
     {
         ArgumentNullException.ThrowIfNull(authorization);
 
-        if (authorization.Scopes is not { Count: > 0 })
-        {
-            return new([]);
-        }
-
-        return new([.. authorization.Scopes]);
+        return new(authorization.Scopes is { IsDefaultOrEmpty: false } scopes ? scopes : []);
     }
 
     /// <inheritdoc/>
@@ -322,7 +304,7 @@ public class OpenIddictMongoDbAuthorizationStore<
         catch (MemberAccessException exception)
         {
             return new(Task.FromException<TAuthorization>(
-                new InvalidOperationException(SR.GetResourceString(SR.ID0242), exception)));
+                new InvalidOperationException(SR.GetResourceString(SR.ID0240), exception)));
         }
     }
 
@@ -335,17 +317,17 @@ public class OpenIddictMongoDbAuthorizationStore<
 
         var query = (IQueryable<TAuthorization>) collection.AsQueryable().OrderBy(authorization => authorization.Id);
 
-        if (offset.HasValue)
+        if (offset is not null)
         {
             query = query.Skip(offset.Value);
         }
 
-        if (count.HasValue)
+        if (count is not null)
         {
             query = query.Take(count.Value);
         }
 
-        await foreach (var authorization in ((IAsyncCursorSource<TAuthorization>) query).ToAsyncEnumerable(cancellationToken))
+        await foreach (var authorization in ((IAsyncCursorSource<TAuthorization>) query).ToAsyncEnumerable().WithCancellation(cancellationToken))
         {
             yield return authorization;
         }
@@ -365,7 +347,7 @@ public class OpenIddictMongoDbAuthorizationStore<
             var database = await Context.GetDatabaseAsync(cancellationToken);
             var collection = database.GetCollection<TAuthorization>(Options.CurrentValue.AuthorizationsCollectionName);
 
-            await foreach (var element in query(collection.AsQueryable(), state).ToAsyncEnumerable(cancellationToken))
+            await foreach (var element in query(collection.AsQueryable(), state).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return element;
             }
@@ -397,9 +379,7 @@ public class OpenIddictMongoDbAuthorizationStore<
         // maximum number of elements that can be removed by a single call to PruneAsync() is deliberately limited.
         foreach (var chunk in identifiers.Take(1_000_000).Chunk(1_000))
         {
-            // Note: Enumerable.Contains() is deliberately used without the extension method syntax to ensure the
-            // span-based MemoryExtensions.Contains() API (which is not supported by MongoDB) is not used instead.
-            result += (await collection.DeleteManyAsync(authorization => Enumerable.Contains(chunk, authorization.Id), cancellationToken)).DeletedCount;
+            result += (await collection.DeleteManyAsync(authorization => chunk.Contains(authorization.Id), cancellationToken)).DeletedCount;
         }
 
         return result;
@@ -476,15 +456,7 @@ public class OpenIddictMongoDbAuthorizationStore<
     {
         ArgumentNullException.ThrowIfNull(authorization);
 
-        if (!string.IsNullOrEmpty(identifier))
-        {
-            authorization.ApplicationId = ObjectId.Parse(identifier);
-        }
-
-        else
-        {
-            authorization.ApplicationId = ObjectId.Empty;
-        }
+        authorization.ApplicationId = !string.IsNullOrEmpty(identifier) ? ObjectId.Parse(identifier) : ObjectId.Empty;
 
         return ValueTask.CompletedTask;
     }
@@ -506,7 +478,7 @@ public class OpenIddictMongoDbAuthorizationStore<
     {
         ArgumentNullException.ThrowIfNull(authorization);
 
-        if (properties is not { Count: > 0 })
+        if (properties is not { IsEmpty: false })
         {
             authorization.Properties = null;
 
@@ -542,14 +514,7 @@ public class OpenIddictMongoDbAuthorizationStore<
     {
         ArgumentNullException.ThrowIfNull(authorization);
 
-        if (scopes.IsDefaultOrEmpty)
-        {
-            authorization.Scopes = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        authorization.Scopes = scopes.ToImmutableList();
+        authorization.Scopes = scopes is { IsDefaultOrEmpty: false } ? scopes : null;
 
         return ValueTask.CompletedTask;
     }
@@ -601,7 +566,7 @@ public class OpenIddictMongoDbAuthorizationStore<
             entity.Id == authorization.Id &&
             entity.ConcurrencyToken == timestamp, authorization, null as ReplaceOptions, cancellationToken)).MatchedCount is 0)
         {
-            throw new ConcurrencyException(SR.GetResourceString(SR.ID0241));
+            throw new ConcurrencyException(SR.GetResourceString(SR.ID0239));
         }
     }
 }

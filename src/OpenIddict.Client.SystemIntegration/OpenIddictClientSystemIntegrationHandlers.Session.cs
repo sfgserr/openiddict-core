@@ -91,9 +91,7 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
             [SupportedOSPlatform("ios12.0")]
             [SupportedOSPlatform("maccatalyst13.1")]
             [SupportedOSPlatform("macos10.15")]
-#pragma warning disable CS1998
             public async ValueTask HandleAsync(ApplyEndSessionRequestContext context)
-#pragma warning restore CS1998
             {
                 ArgumentNullException.ThrowIfNull(context);
 
@@ -127,16 +125,16 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
 
                 using var session = CreateASWebAuthenticationSession();
 
-                // On iOS 13.0 and higher, a presentation context provider returning the UI window to
-                // which the Safari web view will be attached MUST be provided (otherwise, a code 2
-                // error is returned by ASWebAuthenticationSession). To avoid that, a default provider
-                // pointing to the current UI window is automatically attached on iOS 13.0 and higher.
-                if (OperatingSystem.IsIOSVersionAtLeast(13))
+                // Note: a presentation context provider returning the UI window to which the Safari
+                // web view will be attached MUST be provided (otherwise, a code 2 error is returned
+                // by ASWebAuthenticationSession). To avoid that, a default provider pointing to the
+                // current UI window is automatically attached to the ASWebAuthenticationSession object.
+                if (OperatingSystem.IsIOSVersionAtLeast(13) ||
+                    OperatingSystem.IsMacCatalystVersionAtLeast(13) ||
+                    OperatingSystem.IsMacOSVersionAtLeast(10, 15))
                 {
-#pragma warning disable CA1416
                     session.PresentationContextProvider = new ASWebAuthenticationPresentationContext(
                         GetCurrentUIWindow() ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0447)));
-#pragma warning restore CA1416
                 }
 
                 using var registration = context.CancellationToken.Register(
@@ -226,11 +224,12 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
 
                     return new ASWebAuthenticationSession(CreateUrl(), uri.Scheme, HandleCallback);
 
-                    NSUrl CreateUrl() => new(OpenIddictHelpers.AddQueryStringParameters(
+                    NSUrl CreateUrl() => OpenIddictHelpers.AddQueryStringParameters(
                         uri: new Uri(context.EndSessionEndpoint, UriKind.Absolute),
                         parameters: context.Request.GetParameters().ToDictionary(
                             static parameter => parameter.Key,
-                            static parameter => (StringValues) parameter.Value)).AbsoluteUri);
+                            static parameter => (StringValues) parameter.Value,
+                            StringComparer.Ordinal))!;
 
                     void HandleCallback(NSUrl? url, NSError? error)
                     {
@@ -282,7 +281,7 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
             }
 
 #if IOS || MACCATALYST || MACOS
-            class ASWebAuthenticationPresentationContext(NativeWindow window) : NSObject,
+            sealed class ASWebAuthenticationPresentationContext(NativeWindow window) : NSObject,
                 IASWebAuthenticationPresentationContextProviding
             {
                 NativeWindow IASWebAuthenticationPresentationContextProviding.GetPresentationAnchor(
@@ -311,9 +310,7 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
 
             /// <inheritdoc/>
             [SupportedOSPlatform("android21.0")]
-#pragma warning disable CS1998
             public async ValueTask HandleAsync(ApplyEndSessionRequestContext context)
-#pragma warning restore CS1998
             {
                 ArgumentNullException.ThrowIfNull(context);
 
@@ -350,7 +347,8 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                     uri: new Uri(context.EndSessionEndpoint, UriKind.Absolute),
                     parameters: context.Request.GetParameters().ToDictionary(
                         static parameter => parameter.Key,
-                        static parameter => (StringValues) parameter.Value)).AbsoluteUri)!);
+                        static parameter => (StringValues) parameter.Value,
+                        StringComparer.Ordinal)).AbsoluteUri)!);
 
                 context.HandleRequest();
 #else
@@ -384,9 +382,7 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
 
             /// <inheritdoc/>
             [SupportedOSPlatform("windows10.0.17763")]
-#pragma warning disable CS1998
             public async ValueTask HandleAsync(ApplyEndSessionRequestContext context)
-#pragma warning restore CS1998
             {
                 ArgumentNullException.ThrowIfNull(context);
 
@@ -430,7 +426,8 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                         uri: new Uri(context.EndSessionEndpoint, UriKind.Absolute),
                         parameters: context.Request.GetParameters().ToDictionary(
                             static parameter => parameter.Key,
-                            static parameter => (StringValues) parameter.Value)),
+                            static parameter => (StringValues) parameter.Value,
+                            StringComparer.Ordinal)),
                     callbackUri: new Uri(context.PostLogoutRedirectUri, UriKind.Absolute)))
                 {
                     case { ResponseStatus: WebAuthenticationStatus.Success } result
@@ -536,7 +533,8 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                     uri: new Uri(context.EndSessionEndpoint, UriKind.Absolute),
                     parameters: context.Request.GetParameters().ToDictionary(
                         static parameter => parameter.Key,
-                        static parameter => (StringValues) parameter.Value));
+                        static parameter => (StringValues) parameter.Value,
+                        StringComparer.Ordinal));
 
                 if (OperatingSystem.IsWindows())
                 {
@@ -566,7 +564,7 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                         return;
                     }
 #endif
-                    if (await TryLaunchBrowserWithShellExecuteAsync(uri))
+                    if (await TryLaunchBrowserWithShellExecuteAsync(uri, context.CancellationToken))
                     {
                         context.HandleRequest();
                         return;
@@ -583,7 +581,8 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                 }
 #endif
 #if IOS || MACCATALYST
-                if ((OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst()) && await TryLaunchBrowserWithUIApplicationAsync(uri))
+                if ((OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst()) &&
+                    await TryLaunchBrowserWithUIApplicationAsync(uri, context.CancellationToken))
                 {
                     context.HandleRequest();
                     return;
@@ -596,13 +595,13 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                     return;
                 }
 #endif
-                if (OperatingSystem.IsMacOS() && await TryLaunchBrowserWithOpenAsync(uri))
+                if (OperatingSystem.IsMacOS() && await TryLaunchBrowserWithOpenAsync(uri, context.CancellationToken))
                 {
                     context.HandleRequest();
                     return;
                 }
 
-                if (OperatingSystem.IsLinux() && await TryLaunchBrowserWithXdgOpenAsync(uri))
+                if (OperatingSystem.IsLinux() && await TryLaunchBrowserWithXdgOpenAsync(uri, context.CancellationToken))
                 {
                     context.HandleRequest();
                     return;
@@ -636,8 +635,8 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
 
                 // This handler only applies to HTTP listener requests. If the HTTP context cannot be resolved,
                 // this may indicate that the request was incorrectly processed by another server stack.
-                var response = context.Transaction.GetHttpListenerContext()?.Response ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0390));
+                var response = context.Transaction.GetHttpListenerContext()?.Response
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0390));
 
                 // Always return a 200 status, even for responses indicating that the authentication failed.
                 response.StatusCode = 200;
@@ -652,8 +651,8 @@ public static partial class OpenIddictClientSystemIntegrationHandlers
                     _                     => "Logout failed. Please return to the application."
                 });
 
-                await response.OutputStream.WriteAsync(buffer);
-                await response.OutputStream.FlushAsync();
+                await response.OutputStream.WriteAsync(buffer.AsMemory(), context.CancellationToken);
+                await response.OutputStream.FlushAsync(context.CancellationToken);
 
                 context.HandleRequest();
             }

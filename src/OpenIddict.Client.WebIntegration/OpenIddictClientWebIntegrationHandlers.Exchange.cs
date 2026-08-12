@@ -146,8 +146,8 @@ public static partial class OpenIddictClientWebIntegrationHandlers
 
                 // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
                 // this may indicate that the request was incorrectly processed by another client stack.
-                var request = context.Transaction.GetHttpRequestMessage() ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+                var request = context.Transaction.GetHttpRequestMessage()
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
                 // These providers don't implement the standard version of the client_secret_basic
                 // authentication method as they don't support formURL-encoding the client credentials.
@@ -197,8 +197,8 @@ public static partial class OpenIddictClientWebIntegrationHandlers
 
                 // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
                 // this may indicate that the request was incorrectly processed by another client stack.
-                var request = context.Transaction.GetHttpRequestMessage() ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+                var request = context.Transaction.GetHttpRequestMessage()
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
                 // HeyBoxChat requires a "token" header containing the Bot token.
                 if (context.Registration.ProviderType is ProviderTypes.HeyBoxChat)
@@ -246,8 +246,8 @@ public static partial class OpenIddictClientWebIntegrationHandlers
 
                 // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
                 // this may indicate that the request was incorrectly processed by another client stack.
-                var request = context.Transaction.GetHttpRequestMessage() ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+                var request = context.Transaction.GetHttpRequestMessage()
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
                 if (request.RequestUri is null)
                 {
@@ -270,7 +270,7 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                 {
                     request.RequestUri = OpenIddictHelpers.AddQueryStringParameters(
                         uri: request.RequestUri,
-                        parameters: new Dictionary<string, StringValues>
+                        parameters: new Dictionary<string, StringValues>(StringComparer.Ordinal)
                         {
                             ["chat_os_type"] = "bot",
                             ["chat_version"] = "1.30.0"
@@ -306,8 +306,8 @@ public static partial class OpenIddictClientWebIntegrationHandlers
 
                 // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
                 // this may indicate that the request was incorrectly processed by another client stack.
-                var request = context.Transaction.GetHttpRequestMessage() ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+                var request = context.Transaction.GetHttpRequestMessage()
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
                 request.Content = context.Registration.ProviderType switch
                 {

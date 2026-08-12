@@ -5,6 +5,7 @@
  */
 
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipes;
 using System.Net;
 using System.Runtime.Versioning;
@@ -49,6 +50,7 @@ public sealed class OpenIddictClientSystemIntegrationBuilder
     /// <param name="configuration">The delegate used to configure the OpenIddict options.</param>
     /// <remarks>This extension can be safely called multiple times.</remarks>
     /// <returns>The <see cref="OpenIddictClientSystemIntegrationBuilder"/>.</returns>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
     public OpenIddictClientSystemIntegrationBuilder Configure(Action<OpenIddictClientSystemIntegrationOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -276,7 +278,7 @@ public sealed class OpenIddictClientSystemIntegrationBuilder
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public override bool Equals(object? obj) => base.Equals(obj);
+    public override bool Equals([NotNullWhen(true)] object? obj) => base.Equals(obj);
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]

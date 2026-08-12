@@ -34,7 +34,7 @@ public class OpenIddictMongoDbApplicationStore : OpenIddictMongoDbApplicationSto
 /// <summary>
 /// Provides methods allowing to manage the applications stored in a database.
 /// </summary>
-/// <typeparam name="TApplication">The type of the Application entity.</typeparam>
+/// <typeparam name="TApplication">The type of the application entity.</typeparam>
 public class OpenIddictMongoDbApplicationStore<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TApplication> : IOpenIddictApplicationStore<TApplication>
     where TApplication : OpenIddictMongoDbApplication
@@ -151,7 +151,7 @@ public class OpenIddictMongoDbApplicationStore<
             var collection = database.GetCollection<TApplication>(Options.CurrentValue.ApplicationsCollectionName);
 
             await foreach (var application in collection.Find(application =>
-                application.PostLogoutRedirectUris!.Contains(uri)).ToAsyncEnumerable(cancellationToken))
+                application.PostLogoutRedirectUris!.Contains(uri)).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return application;
             }
@@ -172,7 +172,7 @@ public class OpenIddictMongoDbApplicationStore<
             var collection = database.GetCollection<TApplication>(Options.CurrentValue.ApplicationsCollectionName);
 
             await foreach (var application in collection.Find(application =>
-                application.RedirectUris!.Contains(uri)).ToAsyncEnumerable(cancellationToken))
+                application.RedirectUris!.Contains(uri)).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return application;
             }
@@ -245,14 +245,9 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.DisplayNames is not { Count: > 0 })
-        {
-            return new(ImmutableDictionary.Create<CultureInfo, string>());
-        }
-
-        return new(application.DisplayNames.ToImmutableDictionary(
-            pair => CultureInfo.GetCultureInfo(pair.Key),
-            pair => pair.Value));
+        return new(application.DisplayNames is { Count: > 0 } names
+            ? names.ToImmutableDictionary(static pair => CultureInfo.GetCultureInfo(pair.Key), static pair => pair.Value)
+            : []);
     }
 
     /// <inheritdoc/>
@@ -268,12 +263,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.JsonWebKeySet is null)
-        {
-            return new(result: null);
-        }
-
-        return new(JsonWebKeySet.Create(application.JsonWebKeySet.ToJson()));
+        return new(application.JsonWebKeySet is BsonDocument set ? JsonWebKeySet.Create(set.ToJson()) : null);
     }
 
     /// <inheritdoc/>
@@ -282,12 +272,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.Permissions is not { Count: > 0 })
-        {
-            return new([]);
-        }
-
-        return new([.. application.Permissions]);
+        return new(application.Permissions is { IsDefaultOrEmpty: false } permissions ? permissions : []);
     }
 
     /// <inheritdoc/>
@@ -296,12 +281,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.PostLogoutRedirectUris is not { Count: > 0 })
-        {
-            return new([]);
-        }
-
-        return new([.. application.PostLogoutRedirectUris]);
+        return new(application.PostLogoutRedirectUris is { IsDefaultOrEmpty: false } uris ? uris : []);
     }
 
     /// <inheritdoc/>
@@ -311,11 +291,11 @@ public class OpenIddictMongoDbApplicationStore<
 
         if (application.Properties is null)
         {
-            return new(ImmutableDictionary.Create<string, JsonElement>());
+            return new([]);
         }
 
         using var document = JsonDocument.Parse(application.Properties.ToJson());
-        var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>();
+        var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>(StringComparer.Ordinal);
 
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -331,12 +311,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.RedirectUris is not { Count: > 0 })
-        {
-            return new([]);
-        }
-
-        return new([.. application.RedirectUris]);
+        return new(application.RedirectUris is { IsDefaultOrEmpty: false } uris ? uris : []);
     }
 
     /// <inheritdoc/>
@@ -344,12 +319,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.Requirements is not { Count: > 0 })
-        {
-            return new([]);
-        }
-
-        return new([.. application.Requirements]);
+        return new(application.Requirements is { IsDefaultOrEmpty: false } requirements ? requirements : []);
     }
 
     /// <inheritdoc/>
@@ -357,12 +327,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (application.Settings is not { Count: > 0 })
-        {
-            return new(ImmutableDictionary.Create<string, string>());
-        }
-
-        return new(application.Settings.ToImmutableDictionary());
+        return new(application.Settings is { IsEmpty: false } settings ? settings : []);
     }
 
     /// <inheritdoc/>
@@ -389,17 +354,17 @@ public class OpenIddictMongoDbApplicationStore<
 
         var query = (IQueryable<TApplication>) collection.AsQueryable().OrderBy(application => application.Id);
 
-        if (offset.HasValue)
+        if (offset is not null)
         {
             query = query.Skip(offset.Value);
         }
 
-        if (count.HasValue)
+        if (count is not null)
         {
             query = query.Take(count.Value);
         }
 
-        await foreach (var application in ((IAsyncCursorSource<TApplication>) query).ToAsyncEnumerable(cancellationToken))
+        await foreach (var application in ((IAsyncCursorSource<TApplication>) query).ToAsyncEnumerable().WithCancellation(cancellationToken))
         {
             yield return application;
         }
@@ -419,7 +384,7 @@ public class OpenIddictMongoDbApplicationStore<
             var database = await Context.GetDatabaseAsync(cancellationToken);
             var collection = database.GetCollection<TApplication>(Options.CurrentValue.ApplicationsCollectionName);
 
-            await foreach (var element in query(collection.AsQueryable(), state).ToAsyncEnumerable(cancellationToken))
+            await foreach (var element in query(collection.AsQueryable(), state).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return element;
             }
@@ -498,16 +463,9 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (names is not { Count: > 0 })
-        {
-            application.DisplayNames = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        application.DisplayNames = names.ToImmutableDictionary(
-            pair => pair.Key.Name,
-            pair => pair.Value);
+        application.DisplayNames = names is { Count: > 0 }
+            ? names.ToImmutableDictionary(static pair => pair.Key.Name, static pair => pair.Value, StringComparer.Ordinal)
+            : null;
 
         return ValueTask.CompletedTask;
     }
@@ -530,14 +488,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (permissions.IsDefaultOrEmpty)
-        {
-            application.Permissions = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        application.Permissions = permissions.ToImmutableList();
+        application.Permissions = permissions is { IsDefaultOrEmpty: false } ? permissions : null;
 
         return ValueTask.CompletedTask;
     }
@@ -548,14 +499,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (uris.IsDefaultOrEmpty)
-        {
-            application.PostLogoutRedirectUris = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        application.PostLogoutRedirectUris = uris.ToImmutableList();
+        application.PostLogoutRedirectUris = uris is { IsDefaultOrEmpty: false } ? uris : null;
 
         return ValueTask.CompletedTask;
     }
@@ -566,7 +510,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (properties is not { Count: > 0 })
+        if (properties is not { IsEmpty: false })
         {
             application.Properties = null;
 
@@ -602,14 +546,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (uris.IsDefaultOrEmpty)
-        {
-            application.RedirectUris = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        application.RedirectUris = uris.ToImmutableList();
+        application.RedirectUris = uris is { IsDefaultOrEmpty: false } ? uris : null;
 
         return ValueTask.CompletedTask;
     }
@@ -620,14 +557,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (requirements.IsDefaultOrEmpty)
-        {
-            application.Requirements = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        application.Requirements = requirements.ToImmutableList();
+        application.Requirements = requirements is { IsDefaultOrEmpty: false } ? requirements : null;
 
         return ValueTask.CompletedTask;
     }
@@ -638,14 +568,7 @@ public class OpenIddictMongoDbApplicationStore<
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        if (settings is not { Count: > 0 })
-        {
-            application.Settings = null;
-
-            return ValueTask.CompletedTask;
-        }
-
-        application.Settings = settings;
+        application.Settings = settings is { IsEmpty: false } ? settings : null;
 
         return ValueTask.CompletedTask;
     }

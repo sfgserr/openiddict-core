@@ -4,6 +4,7 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -167,8 +168,8 @@ public static partial class OpenIddictValidationHandlers
                 // Resolve and attach the server configuration to the context if none has been set already.
                 context.Configuration ??= await context.Options.ConfigurationManager
                     .GetConfigurationAsync(context.CancellationToken)
-                    .WaitAsync(context.CancellationToken) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                    .WaitAsync(context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
             }
 
             catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -530,7 +531,7 @@ public static partial class OpenIddictValidationHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Options.ClientAssertionLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -601,13 +602,13 @@ public static partial class OpenIddictValidationHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,
@@ -921,7 +922,7 @@ public static partial class OpenIddictValidationHandlers
 
                 // If the thumbprint of the certificate doesn't match the hash
                 // resolved from the confirmation claim, return an error.
-                var hash = Base64UrlEncoder.Encode(certificate.GetCertHash(HashAlgorithmName.SHA256));
+                var hash = Base64Url.EncodeToString(certificate.GetCertHash(HashAlgorithmName.SHA256));
                 if (!CryptographicOperations.FixedTimeEquals(
                     left : MemoryMarshal.AsBytes<char>(hash),
                     right: MemoryMarshal.AsBytes<char>(thumbprint)))
@@ -992,13 +993,13 @@ public static partial class OpenIddictValidationHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectAccessToken)
                 {

@@ -17,30 +17,56 @@ namespace OpenIddict.Extensions;
 /// </summary>
 internal static class OpenIddictPolyfills
 {
-    extension(Convert)
+    extension(CryptographicOperations)
     {
 #if !NET
-        /// <summary>Converts the specified string, which encodes binary data as hex characters, to an equivalent 8-bit unsigned integer array.</summary>
-        /// <param name="s">The string to convert.</param>
-        /// <returns>An array of 8-bit unsigned integers that is equivalent to <paramref name="s"/>.</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="s"/> is <code>null</code>.</exception>
-        /// <exception cref="FormatException">The length of <paramref name="s"/>, is not zero or a multiple of 2.</exception>
-        /// <exception cref="FormatException">The format of <paramref name="s"/> is invalid. <paramref name="s"/> contains a non-hex character.</exception>
-        public static byte[] FromHexString(string s)
+        /// <summary>
+        /// Determine the equality of two byte sequences in an amount of time which depends on
+        /// the length of the sequences, but not the values.
+        /// </summary>
+        /// <param name="left">The first buffer to compare.</param>
+        /// <param name="right">The second buffer to compare.</param>
+        /// <returns>
+        ///   <c>true</c> if <paramref name="left"/> and <paramref name="right"/> have the same
+        ///   values for <see cref="ReadOnlySpan{T}.Length"/> and the same contents, <c>false</c>
+        ///   otherwise.
+        /// </returns>
+        /// <remarks>
+        ///   This method compares two buffers' contents for equality in a manner which does not
+        ///   leak timing information, making it ideal for use within cryptographic routines.
+        ///   This method will short-circuit and return <c>false</c> only if <paramref name="left"/>
+        ///   and <paramref name="right"/> have different lengths.
+        ///
+        ///   Fixed-time behavior is guaranteed in all other cases, including if <paramref name="left"/>
+        ///   and <paramref name="right"/> reference the same address.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+        public static bool FixedTimeEquals(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right)
         {
-            if ((uint) s.Length % 2 is not 0)
+            // Note: the logic used here is directly taken from the official implementation of
+            // the CryptographicOperations.FixedTimeEquals() method introduced in .NET Core 2.1.
+            //
+            // See https://github.com/dotnet/corefx/pull/27103 for more information.
+
+            // Note: these null checks can be theoretically considered as early checks
+            // (which would defeat the purpose of a time-constant comparison method),
+            // but the expected string length is the only information an attacker
+            // could get at this stage, which is not critical where this method is used.
+
+            if (left.Length != right.Length)
             {
-                throw new FormatException(SR.GetResourceString(SR.ID0413));
+                return false;
             }
 
-            var array = new byte[s.Length / 2];
+            var length = left.Length;
+            var accumulator = 0;
 
-            for (var index = 0; index < s.Length; index += 2)
+            for (var index = 0; index < length; index++)
             {
-                array[index / 2] = Convert.ToByte(s.Substring(index, 2), 16);
+                accumulator |= left[index] - right[index];
             }
 
-            return array;
+            return accumulator is 0;
         }
 #endif
     }
@@ -196,27 +222,6 @@ internal static class OpenIddictPolyfills
 #endif
     }
 
-    extension(SHA384)
-    {
-#if !NET
-        /// <summary>
-        /// Computes the hash of data using the SHA384 algorithm.
-        /// </summary>
-        /// <param name="source">The data to hash.</param>
-        /// <returns>The hash of the data.</returns>
-        /// <exception cref="ArgumentNullException">
-        /// <paramref name="source" /> is <see langword="null" />.
-        /// </exception>
-        public static byte[] HashData(byte[] source)
-        {
-            ArgumentNullException.ThrowIfNull(source);
-            
-            using var algorithm = SHA384.Create();
-            return algorithm.ComputeHash(source);
-        }
-#endif
-    }
-
     extension<TResult>(ValueTask<TResult>)
     {
 #if !NET
@@ -267,11 +272,6 @@ internal static class OpenIddictPolyfills
                 UrlRetrievalTimeout = policy.UrlRetrievalTimeout,
                 VerificationFlags = policy.VerificationFlags,
                 VerificationTime = policy.VerificationTime,
-#if NET
-                DisableCertificateDownloads = policy.DisableCertificateDownloads,
-                TrustMode = policy.TrustMode,
-                VerificationTimeIgnored = policy.VerificationTimeIgnored
-#endif
             };
 
             if (policy.ApplicationPolicy.Count is > 0)
@@ -290,10 +290,6 @@ internal static class OpenIddictPolyfills
                 }
             }
 
-#if NET
-            clone.CustomTrustStore.AddRange(policy.CustomTrustStore);
-#endif
-
             clone.ExtraStore.AddRange(policy.ExtraStore);
 
             return clone;
@@ -301,85 +297,3 @@ internal static class OpenIddictPolyfills
 #endif
     }
 }
-
-
-/// <summary>
-/// Exposes common polyfills used by the OpenIddict assemblies.
-/// </summary>
-internal static class OpenIddictPolyfills_SHA512
-{
-    extension(SHA512)
-    {
-#if !NET
-        /// <summary>
-        /// Computes the hash of data using the SHA512 algorithm.
-        /// </summary>
-        /// <param name="source">The data to hash.</param>
-        /// <returns>The hash of the data.</returns>
-        /// <exception cref="ArgumentNullException">
-        /// <paramref name="source" /> is <see langword="null" />.
-        /// </exception>
-        public static byte[] HashData(byte[] source)
-        {
-            ArgumentNullException.ThrowIfNull(source);
-            
-            using var algorithm = SHA512.Create();
-            return algorithm.ComputeHash(source);
-        }
-#endif
-    }
-}
-
-#if !NET
-internal static class CryptographicOperations
-{
-    /// <summary>
-    /// Determine the equality of two byte sequences in an amount of time which depends on
-    /// the length of the sequences, but not the values.
-    /// </summary>
-    /// <param name="left">The first buffer to compare.</param>
-    /// <param name="right">The second buffer to compare.</param>
-    /// <returns>
-    ///   <c>true</c> if <paramref name="left"/> and <paramref name="right"/> have the same
-    ///   values for <see cref="ReadOnlySpan{T}.Length"/> and the same contents, <c>false</c>
-    ///   otherwise.
-    /// </returns>
-    /// <remarks>
-    ///   This method compares two buffers' contents for equality in a manner which does not
-    ///   leak timing information, making it ideal for use within cryptographic routines.
-    ///   This method will short-circuit and return <c>false</c> only if <paramref name="left"/>
-    ///   and <paramref name="right"/> have different lengths.
-    ///
-    ///   Fixed-time behavior is guaranteed in all other cases, including if <paramref name="left"/>
-    ///   and <paramref name="right"/> reference the same address.
-    /// </remarks>
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
-    public static bool FixedTimeEquals(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right)
-    {
-        // Note: the logic used here is directly taken from the official implementation of
-        // the CryptographicOperations.FixedTimeEquals() method introduced in .NET Core 2.1.
-        //
-        // See https://github.com/dotnet/corefx/pull/27103 for more information.
-
-        // Note: these null checks can be theoretically considered as early checks
-        // (which would defeat the purpose of a time-constant comparison method),
-        // but the expected string length is the only information an attacker
-        // could get at this stage, which is not critical where this method is used.
-
-        if (left.Length != right.Length)
-        {
-            return false;
-        }
-
-        var length = left.Length;
-        var accumulator = 0;
-
-        for (var index = 0; index < length; index++)
-        {
-            accumulator |= left[index] - right[index];
-        }
-
-        return accumulator is 0;
-    }
-}
-#endif

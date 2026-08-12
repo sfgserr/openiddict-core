@@ -38,12 +38,12 @@ public class ManageController : Controller
     public async Task<IActionResult> Index(ManageMessageId? message = null)
     {
         ViewData["StatusMessage"] =
-            message == ManageMessageId.ChangePasswordSuccess ? "Your password has been changed."
-            : message == ManageMessageId.SetPasswordSuccess ? "Your password has been set."
-            : message == ManageMessageId.SetTwoFactorSuccess ? "Your two-factor authentication provider has been set."
-            : message == ManageMessageId.Error ? "An error has occurred."
-            : message == ManageMessageId.AddPhoneSuccess ? "Your phone number was added."
-            : message == ManageMessageId.RemovePhoneSuccess ? "Your phone number was removed."
+            message is ManageMessageId.ChangePasswordSuccess ? "Your password has been changed."
+            : message is ManageMessageId.SetPasswordSuccess ? "Your password has been set."
+            : message is ManageMessageId.SetTwoFactorSuccess ? "Your two-factor authentication provider has been set."
+            : message is ManageMessageId.Error ? "An error has occurred."
+            : message is ManageMessageId.AddPhoneSuccess ? "Your phone number was added."
+            : message is ManageMessageId.RemovePhoneSuccess ? "Your phone number was removed."
             : "";
 
         var user = await GetCurrentUserAsync();
@@ -261,9 +261,9 @@ public class ManageController : Controller
     public async Task<IActionResult> ManageLogins(ManageMessageId? message = null)
     {
         ViewData["StatusMessage"] =
-            message == ManageMessageId.RemoveLoginSuccess ? "The external login was removed."
-            : message == ManageMessageId.AddLoginSuccess ? "The external login was added."
-            : message == ManageMessageId.Error ? "An error has occurred."
+            message is ManageMessageId.RemoveLoginSuccess ? "The external login was removed."
+            : message is ManageMessageId.AddLoginSuccess ? "The external login was added."
+            : message is ManageMessageId.Error ? "An error has occurred."
             : "";
         var user = await GetCurrentUserAsync();
         if (user is null)
@@ -271,7 +271,7 @@ public class ManageController : Controller
             return View("Error");
         }
         var userLogins = await _userManager.GetLoginsAsync(user);
-        var otherLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).Where(auth => userLogins.All(ul => auth.Name != ul.LoginProvider)).ToList();
+        var otherLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).Where(auth => userLogins.All(ul => !string.Equals(auth.Name, ul.LoginProvider, StringComparison.Ordinal))).ToList();
         ViewData["ShowRemoveButton"] = user.PasswordHash is not null || userLogins.Count > 1;
         return View(new ManageLoginsViewModel
         {

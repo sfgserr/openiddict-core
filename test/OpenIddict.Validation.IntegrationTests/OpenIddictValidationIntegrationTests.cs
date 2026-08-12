@@ -24,7 +24,7 @@ using static OpenIddict.Validation.OpenIddictValidationHandlers.Protection;
 
 namespace OpenIddict.Validation.IntegrationTests;
 
-public abstract partial class OpenIddictValidationIntegrationTests
+public abstract class OpenIddictValidationIntegrationTests
 {
     protected OpenIddictValidationIntegrationTests(ITestOutputHelper outputHelper)
     {
@@ -408,8 +408,8 @@ public abstract partial class OpenIddictValidationIntegrationTests
 
         static X509Certificate2 GetSigningCertificate(Assembly assembly, string resource)
         {
-            using var stream = assembly.GetManifestResourceStream(resource) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0064));
+            using var stream = assembly.GetManifestResourceStream(resource)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0064));
 
             using var buffer = new MemoryStream();
             stream.CopyTo(buffer);
@@ -449,6 +449,6 @@ public abstract partial class OpenIddictValidationIntegrationTests
         return manager.Object;
     }
 
-    public class OpenIddictAuthorization { }
-    public class OpenIddictToken { }
+    public class OpenIddictAuthorization;
+    public class OpenIddictToken;
 }

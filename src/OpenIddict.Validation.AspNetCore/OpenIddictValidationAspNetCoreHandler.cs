@@ -42,13 +42,23 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
     /// <inheritdoc/>
     public async Task<bool> HandleRequestAsync()
     {
+        // Note: to ensure internal operations are not immediately cancelled when the request is aborted
+        // (which may represent a security risk if sensitive operations are in progress), an ad-hoc token
+        // source is always created and configured to be triggered 5 seconds after the request is aborted.
+        var source = new CancellationTokenSource();
+        var registration = Context.RequestAborted.Register(static state =>
+            ((CancellationTokenSource) state!).CancelAfter(TimeSpan.FromSeconds(5)), source);
+
+        Response.RegisterForDispose(source);
+        Response.RegisterForDispose(registration);
+
         // Note: the transaction may be already attached when replaying an ASP.NET Core request
         // (e.g when using the built-in status code pages middleware with the re-execute mode).
         var transaction = Context.Features.Get<OpenIddictValidationAspNetCoreFeature>()?.Transaction;
         if (transaction is null)
         {
             // Create a new transaction and attach the HTTP request to make it available to the ASP.NET Core handlers.
-            transaction = await _factory.CreateTransactionAsync();
+            transaction = await _factory.CreateTransactionAsync(source.Token);
             transaction.Properties[typeof(HttpRequest).FullName!] = new WeakReference<HttpRequest>(Request);
 
             // Attach the OpenIddict validation transaction to the ASP.NET Core features
@@ -56,11 +66,7 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
             Context.Features.Set(new OpenIddictValidationAspNetCoreFeature { Transaction = transaction });
         }
 
-        var context = new ProcessRequestContext(transaction)
-        {
-            CancellationToken = Context.RequestAborted
-        };
-
+        var context = new ProcessRequestContext(transaction);
         await _dispatcher.DispatchAsync(context);
 
         if (context.IsRequestHandled)
@@ -68,16 +74,15 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
             return true;
         }
 
-        else if (context.IsRequestSkipped)
+        if (context.IsRequestSkipped)
         {
             return false;
         }
 
-        else if (context.IsRejected)
+        if (context.IsRejected)
         {
             var notification = new ProcessErrorContext(transaction)
             {
-                CancellationToken = Context.RequestAborted,
                 Error = context.Error ?? Errors.InvalidRequest,
                 ErrorDescription = context.ErrorDescription,
                 ErrorUri = context.ErrorUri,
@@ -91,7 +96,7 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
                 return true;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 return false;
             }
@@ -105,8 +110,8 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
     /// <inheritdoc/>
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var transaction = Context.Features.Get<OpenIddictValidationAspNetCoreFeature>()?.Transaction ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0166));
+        var transaction = Context.Features.Get<OpenIddictValidationAspNetCoreFeature>()?.Transaction
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0166));
 
         // Note: in many cases, the authentication token was already validated by the time this action is called
         // (generally later in the pipeline, when using the pass-through mode). To avoid having to re-validate it,
@@ -114,10 +119,7 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
         var context = transaction.GetProperty<ProcessAuthenticationContext>(typeof(ProcessAuthenticationContext).FullName!);
         if (context is null)
         {
-            await _dispatcher.DispatchAsync(context = new ProcessAuthenticationContext(transaction)
-            {
-                CancellationToken = Context.RequestAborted
-            });
+            await _dispatcher.DispatchAsync(context = new ProcessAuthenticationContext(transaction));
 
             // Store the context object in the transaction so it can be later retrieved by handlers
             // that want to access the authentication result without triggering a new authentication flow.
@@ -129,7 +131,7 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
             return AuthenticateResult.NoResult();
         }
 
-        else if (context.IsRejected)
+        if (context.IsRejected)
         {
             // Note: the missing_token error is special-cased to indicate to ASP.NET Core
             // that no authentication result could be produced due to the lack of token.
@@ -207,14 +209,13 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
     /// <inheritdoc/>
     protected override async Task HandleChallengeAsync(AuthenticationProperties? properties)
     {
-        var transaction = Context.Features.Get<OpenIddictValidationAspNetCoreFeature>()?.Transaction ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0166));
+        var transaction = Context.Features.Get<OpenIddictValidationAspNetCoreFeature>()?.Transaction
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0166));
 
         transaction.Properties[typeof(AuthenticationProperties).FullName!] = properties ?? new AuthenticationProperties();
 
         var context = new ProcessChallengeContext(transaction)
         {
-            CancellationToken = Context.RequestAborted,
             Response = new OpenIddictResponse()
         };
 
@@ -225,11 +226,10 @@ public sealed class OpenIddictValidationAspNetCoreHandler : AuthenticationHandle
             return;
         }
 
-        else if (context.IsRejected)
+        if (context.IsRejected)
         {
             var notification = new ProcessErrorContext(transaction)
             {
-                CancellationToken = Context.RequestAborted,
                 Error = context.Error ?? Errors.InvalidRequest,
                 ErrorDescription = context.ErrorDescription,
                 ErrorUri = context.ErrorUri,

@@ -4,10 +4,13 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -36,6 +39,12 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
         ArgumentNullException.ThrowIfNull(options);
 
         options.TimeProvider ??= _provider.GetService<TimeProvider>() ?? TimeProvider.System;
+
+        // If no user code display format was explicitly set, generate a default format based on the configured length.
+        if (options.UserCodeLength is >= 1 && string.IsNullOrEmpty(options.UserCodeDisplayFormat))
+        {
+            options.UserCodeDisplayFormat = ComputeDefaultUserCodeDisplayFormat(options.UserCodeLength);
+        }
 
         // Explicitly disable all the features that are implicitly excluded when the degraded mode is active.
         if (options.EnableDegradedMode)
@@ -75,9 +84,9 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
         options.SigningCredentials.Sort((left, right) => Compare(left.Key, right.Key, now));
 
         // Generate a key identifier for the encryption/signing keys that don't already have one.
-        foreach (var key in options.EncryptionCredentials.Select(credentials => credentials.Key)
-            .Concat(options.SigningCredentials.Select(credentials => credentials.Key))
-            .Where(key => string.IsNullOrEmpty(key.KeyId)))
+        foreach (var key in options.EncryptionCredentials.Select(static credentials => credentials.Key)
+            .Concat(options.SigningCredentials.Select(static credentials => credentials.Key))
+            .Where(static key => string.IsNullOrEmpty(key.KeyId)))
         {
             key.KeyId = GetKeyIdentifier(key);
         }
@@ -117,47 +126,80 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
             (SecurityKey, SecurityKey) => 0
         };
 
+        static string ComputeDefaultUserCodeDisplayFormat(int length)
+        {
+            var builder = new StringBuilder();
+
+            var count = length % 5 is 0 ? 5 :
+                        length % 4 is 0 ? 4 :
+                        length % 3 is 0 ? 3 :
+                        length % 2 is 0 ? 2 : 1;
+
+            for (var index = 0; index < length; index++)
+            {
+                if (index is > 0 && index % count is 0)
+                {
+                    builder.Append(Separators.Dash[0]);
+                }
+
+                builder.Append('{');
+                builder.Append(index);
+                builder.Append('}');
+            }
+
+            return builder.ToString();
+        }
+
         static string? GetKeyIdentifier(SecurityKey key)
         {
             // When no key identifier can be retrieved from the security keys, a value is automatically
             // inferred from the hexadecimal representation of the certificate thumbprint (SHA-1)
             // when the key is bound to a X.509 certificate or from the public part of the signing key.
 
-            if (key is X509SecurityKey x509SecurityKey)
+            return key switch
             {
-                return x509SecurityKey.Certificate.Thumbprint;
+                X509SecurityKey  value => value.Certificate.Thumbprint,
+                RsaSecurityKey   value => GetRsaSecurityKeyIdentifier(value),
+                ECDsaSecurityKey value => GetEcdsaSecurityKeyIdentifier(value),
+                MlDsaSecurityKey value => GetMLDsaSecurityKeyIdentifier(value),
+
+                _ => null
+            };
+
+            static string GetEcdsaSecurityKeyIdentifier(ECDsaSecurityKey key)
+            {
+                var parameters = key.ECDsa.ExportParameters(includePrivateParameters: false);
+
+                Debug.Assert(parameters.Q.X is not null, SR.GetResourceString(SR.ID4004));
+
+                // Only use the 40 first chars of the base64url-encoded X coordinate.
+                var identifier = Base64Url.EncodeToString(parameters.Q.X);
+                return identifier[.. Math.Min(identifier.Length, 40)].ToUpperInvariant();
             }
 
-            if (key is RsaSecurityKey rsaSecurityKey)
+            static string GetMLDsaSecurityKeyIdentifier(MlDsaSecurityKey key)
+            {
+                // Only use the 40 first chars of the base64url-encoded SHA256 of the ML-DSA public key.
+                var identifier = Base64Url.EncodeToString(SHA256.HashData(key.MLDsa.ExportMLDsaPublicKey()));
+                return identifier[.. Math.Min(identifier.Length, 40)].ToUpperInvariant();
+            }
+
+            static string GetRsaSecurityKeyIdentifier(RsaSecurityKey key)
             {
                 // Note: if the RSA parameters are not attached to the signing key,
                 // extract them by calling ExportParameters on the RSA instance.
-                var parameters = rsaSecurityKey.Parameters;
+                var parameters = key.Parameters;
                 if (parameters.Modulus is null)
                 {
-                    parameters = rsaSecurityKey.Rsa.ExportParameters(includePrivateParameters: false);
+                    parameters = key.Rsa.ExportParameters(includePrivateParameters: false);
 
                     Debug.Assert(parameters.Modulus is not null, SR.GetResourceString(SR.ID4003));
                 }
 
                 // Only use the 40 first chars of the base64url-encoded modulus.
-                var identifier = Base64UrlEncoder.Encode(parameters.Modulus);
-                return identifier[..Math.Min(identifier.Length, 40)].ToUpperInvariant();
+                var identifier = Base64Url.EncodeToString(parameters.Modulus);
+                return identifier[.. Math.Min(identifier.Length, 40)].ToUpperInvariant();
             }
-
-            if (key is ECDsaSecurityKey ecsdaSecurityKey)
-            {
-                // Extract the ECDSA parameters from the signing credentials.
-                var parameters = ecsdaSecurityKey.ECDsa.ExportParameters(includePrivateParameters: false);
-
-                Debug.Assert(parameters.Q.X is not null, SR.GetResourceString(SR.ID4004));
-
-                // Only use the 40 first chars of the base64url-encoded X coordinate.
-                var identifier = Base64UrlEncoder.Encode(parameters.Q.X);
-                return identifier[..Math.Min(identifier.Length, 40)].ToUpperInvariant();
-            }
-
-            return null;
         }
     }
 
@@ -482,7 +524,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
             if (options.AuthorizationEndpointUris.Count is not 0 && !options.Handlers.Exists(static descriptor =>
                 descriptor.ContextType == typeof(ValidateAuthorizationRequestContext) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0089));
             }
@@ -491,7 +533,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
                 (descriptor.ContextType == typeof(ValidateDeviceAuthorizationRequestContext) ||
                  descriptor.ContextType == typeof(ProcessAuthenticationContext)) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0090));
             }
@@ -500,7 +542,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
                 (descriptor.ContextType == typeof(ValidateIntrospectionRequestContext) ||
                  descriptor.ContextType == typeof(ProcessAuthenticationContext)) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0091));
             }
@@ -508,7 +550,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
             if (options.EndSessionEndpointUris.Count is not 0 && !options.Handlers.Exists(static descriptor =>
                 descriptor.ContextType == typeof(ValidateEndSessionRequestContext) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0092));
             }
@@ -517,7 +559,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
                 (descriptor.ContextType == typeof(ValidatePushedAuthorizationRequestContext) ||
                  descriptor.ContextType == typeof(ProcessAuthenticationContext)) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0466));
             }
@@ -526,7 +568,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
                 (descriptor.ContextType == typeof(ValidateRevocationRequestContext) ||
                  descriptor.ContextType == typeof(ProcessAuthenticationContext)) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0093));
             }
@@ -535,7 +577,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
                 (descriptor.ContextType == typeof(ValidateTokenRequestContext) ||
                  descriptor.ContextType == typeof(ProcessAuthenticationContext)) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0094));
             }
@@ -543,7 +585,7 @@ public sealed class OpenIddictServerConfiguration : IPostConfigureOptions<OpenId
             if (options.EndUserVerificationEndpointUris.Count is not 0 && !options.Handlers.Exists(static descriptor =>
                 descriptor.ContextType == typeof(ValidateEndUserVerificationRequestContext) &&
                 descriptor.Type is OpenIddictServerHandlerType.Custom &&
-                descriptor.FilterTypes.All(type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
+                descriptor.FilterTypes.All(static type => !typeof(RequireDegradedModeDisabled).IsAssignableFrom(type))))
             {
                 builder.AddError(SR.GetResourceString(SR.ID0095));
             }

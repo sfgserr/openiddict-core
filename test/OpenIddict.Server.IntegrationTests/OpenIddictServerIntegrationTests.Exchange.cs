@@ -2251,7 +2251,17 @@ public abstract partial class OpenIddictServerIntegrationTests
     public async Task ValidateTokenRequest_RequestIsRejectedWhenUnregisteredResourceIsSpecified()
     {
         // Arrange
-        await using var server = await CreateServerAsync();
+        await using var server = await CreateServerAsync(options =>
+        {
+            options.Services.AddSingleton(CreateResourceManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByNamesAsync(
+                    It.Is<ImmutableArray<string>>(resources => resources.Length == 1 && resources[0] == "urn:unregistered_resource"),
+                    It.IsAny<CancellationToken>()))
+                    .Returns(AsyncEnumerable.Empty<OpenIddictResource>());
+            }));
+        });
+
         await using var client = await server.CreateClientAsync();
 
         // Act
@@ -2305,6 +2315,62 @@ public abstract partial class OpenIddictServerIntegrationTests
             Resources = ["urn:registered_resource"],
             SubjectToken = "8xLOxBtZp8",
             SubjectTokenType = TokenTypeIdentifiers.RefreshToken
+        });
+
+        // Assert
+        Assert.Null(response.Error);
+        Assert.Null(response.ErrorDescription);
+        Assert.Null(response.ErrorUri);
+        Assert.NotNull(response.AccessToken);
+    }
+
+    [Fact]
+    public async Task ValidateTokenRequest_RequestIsValidatedWhenRegisteredResourceIsSpecified()
+    {
+        // Arrange
+        var resource = new OpenIddictResource();
+
+        var manager = CreateResourceManager(mock =>
+        {
+            mock.Setup(manager => manager.FindByNamesAsync(
+                It.Is<ImmutableArray<string>>(resources => resources.Length == 1 && resources[0] == "urn:resource_registered_in_database"),
+                It.IsAny<CancellationToken>()))
+                .Returns(new[] { resource }.ToAsyncEnumerable());
+
+            mock.Setup(manager => manager.GetNameAsync(resource, It.IsAny<CancellationToken>()))
+                .ReturnsAsync("urn:resource_registered_in_database");
+        });
+
+        await using var server = await CreateServerAsync(options =>
+        {
+            options.RegisterResources("urn:resource_registered_in_options");
+            options.SetDeviceAuthorizationEndpointUris(Array.Empty<Uri>());
+            options.SetRevocationEndpointUris(Array.Empty<Uri>());
+            options.Configure(options => options.GrantTypes.Remove(GrantTypes.DeviceCode));
+            options.DisableTokenStorage();
+            options.DisableSlidingRefreshTokenExpiration();
+
+            options.Services.AddSingleton(manager);
+
+            options.AddEventHandler<HandleTokenRequestContext>(builder =>
+                builder.UseInlineHandler(context =>
+                {
+                    context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                        .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                    return ValueTask.CompletedTask;
+                }));
+        });
+
+        await using var client = await server.CreateClientAsync();
+
+        // Act
+        var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+        {
+            GrantType = GrantTypes.Password,
+            Username = "johndoe",
+            Password = "A3ddj3w",
+            Resources = ["urn:resource_registered_in_database", "urn:resource_registered_in_options"]
         });
 
         // Assert
@@ -2966,7 +3032,7 @@ public abstract partial class OpenIddictServerIntegrationTests
                 .ReturnsAsync(false);
 
             mock.Setup(manager => manager.GetSettingsAsync(application, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(ImmutableDictionary.Create<string, string>());
+                .ReturnsAsync(ImmutableDictionary.Create<string, string>(StringComparer.Ordinal));
         });
 
         await using var server = await CreateServerAsync(options =>
@@ -3037,7 +3103,7 @@ public abstract partial class OpenIddictServerIntegrationTests
                 .ReturnsAsync(false);
 
             mock.Setup(manager => manager.GetSettingsAsync(application, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(ImmutableDictionary.Create<string, string>());
+                .ReturnsAsync(ImmutableDictionary.Create<string, string>(StringComparer.Ordinal));
         });
 
         await using var server = await CreateServerAsync(options =>
@@ -3243,7 +3309,7 @@ public abstract partial class OpenIddictServerIntegrationTests
                     .ReturnsAsync(true);
 
                 mock.Setup(manager => manager.GetSettingsAsync(application, It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(ImmutableDictionary.Create<string, string>());
+                    .ReturnsAsync(ImmutableDictionary.Create<string, string>(StringComparer.Ordinal));
             }));
 
             options.SetDeviceAuthorizationEndpointUris(Array.Empty<Uri>());
@@ -4743,7 +4809,7 @@ public abstract partial class OpenIddictServerIntegrationTests
                     .ReturnsAsync(true);
 
                 mock.Setup(manager => manager.GetSettingsAsync(application, It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(ImmutableDictionary.Create<string, string>());
+                    .ReturnsAsync(ImmutableDictionary.Create<string, string>(StringComparer.Ordinal));
             }));
 
             options.Services.AddSingleton(CreateTokenManager(mock =>
@@ -6037,7 +6103,7 @@ public abstract partial class OpenIddictServerIntegrationTests
                     .ReturnsAsync(true);
 
                 mock.Setup(manager => manager.GetSettingsAsync(application, It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(ImmutableDictionary.Create<string, string>());
+                    .ReturnsAsync(ImmutableDictionary.Create<string, string>(StringComparer.Ordinal));
             }));
 
             options.Services.AddSingleton(manager);

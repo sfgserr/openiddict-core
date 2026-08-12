@@ -4,6 +4,7 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -87,8 +88,8 @@ public sealed class OpenIddictClientConfiguration : IPostConfigureOptions<OpenId
         // Implicitly add the redirect_uri attached to the client registrations
         // to the list of redirection endpoints URIs if they haven't been added.
         options.RedirectionEndpointUris.AddRange(options.Registrations
-            .Where(registration => registration.RedirectUri is not null)
-            .Select(registration => registration.RedirectUri!)
+            .Where(static registration => registration.RedirectUri is not null)
+            .Select(static registration => registration.RedirectUri!)
             .Where(uri => !options.RedirectionEndpointUris.Contains(uri))
             .Distinct()
             .ToList());
@@ -96,8 +97,8 @@ public sealed class OpenIddictClientConfiguration : IPostConfigureOptions<OpenId
         // Implicitly add the post_logout_redirect_uri attached to the client registrations
         // to the list of post-logout redirection endpoints URIs if they haven't been added.
         options.PostLogoutRedirectionEndpointUris.AddRange(options.Registrations
-            .Where(registration => registration.PostLogoutRedirectUri is not null)
-            .Select(registration => registration.PostLogoutRedirectUri!)
+            .Where(static registration => registration.PostLogoutRedirectUri is not null)
+            .Select(static registration => registration.PostLogoutRedirectUri!)
             .Where(uri => !options.PostLogoutRedirectionEndpointUris.Contains(uri))
             .Distinct()
             .ToList());
@@ -112,9 +113,9 @@ public sealed class OpenIddictClientConfiguration : IPostConfigureOptions<OpenId
         options.SigningCredentials.Sort((left, right) => Compare(left.Key, right.Key, now));
 
         // Generate a key identifier for the encryption/signing keys that don't already have one.
-        foreach (var key in options.EncryptionCredentials.Select(credentials => credentials.Key)
-            .Concat(options.SigningCredentials.Select(credentials => credentials.Key))
-            .Where(key => string.IsNullOrEmpty(key.KeyId)))
+        foreach (var key in options.EncryptionCredentials.Select(static credentials => credentials.Key)
+            .Concat(options.SigningCredentials.Select(static credentials => credentials.Key))
+            .Where(static key => string.IsNullOrEmpty(key.KeyId)))
         {
             key.KeyId = GetKeyIdentifier(key);
         }
@@ -160,41 +161,50 @@ public sealed class OpenIddictClientConfiguration : IPostConfigureOptions<OpenId
             // inferred from the hexadecimal representation of the certificate thumbprint (SHA-1)
             // when the key is bound to a X.509 certificate or from the public part of the signing key.
 
-            if (key is X509SecurityKey x509SecurityKey)
+            return key switch
             {
-                return x509SecurityKey.Certificate.Thumbprint;
+                X509SecurityKey  value => value.Certificate.Thumbprint,
+                RsaSecurityKey   value => GetRsaSecurityKeyIdentifier(value),
+                ECDsaSecurityKey value => GetEcdsaSecurityKeyIdentifier(value),
+                MlDsaSecurityKey value => GetMLDsaSecurityKeyIdentifier(value),
+
+                _ => null
+            };
+
+            static string GetEcdsaSecurityKeyIdentifier(ECDsaSecurityKey key)
+            {
+                var parameters = key.ECDsa.ExportParameters(includePrivateParameters: false);
+
+                Debug.Assert(parameters.Q.X is not null, SR.GetResourceString(SR.ID4004));
+
+                // Only use the 40 first chars of the base64url-encoded X coordinate.
+                var identifier = Base64Url.EncodeToString(parameters.Q.X);
+                return identifier[.. Math.Min(identifier.Length, 40)].ToUpperInvariant();
             }
 
-            if (key is RsaSecurityKey rsaSecurityKey)
+            static string GetMLDsaSecurityKeyIdentifier(MlDsaSecurityKey key)
+            {
+                // Only use the 40 first chars of the base64url-encoded SHA256 of the ML-DSA public key.
+                var identifier = Base64Url.EncodeToString(SHA256.HashData(key.MLDsa.ExportMLDsaPublicKey()));
+                return identifier[.. Math.Min(identifier.Length, 40)].ToUpperInvariant();
+            }
+
+            static string GetRsaSecurityKeyIdentifier(RsaSecurityKey key)
             {
                 // Note: if the RSA parameters are not attached to the signing key,
                 // extract them by calling ExportParameters on the RSA instance.
-                var parameters = rsaSecurityKey.Parameters;
+                var parameters = key.Parameters;
                 if (parameters.Modulus is null)
                 {
-                    parameters = rsaSecurityKey.Rsa.ExportParameters(includePrivateParameters: false);
+                    parameters = key.Rsa.ExportParameters(includePrivateParameters: false);
 
                     Debug.Assert(parameters.Modulus is not null, SR.GetResourceString(SR.ID4003));
                 }
 
                 // Only use the 40 first chars of the base64url-encoded modulus.
-                var identifier = Base64UrlEncoder.Encode(parameters.Modulus);
-                return identifier[..Math.Min(identifier.Length, 40)].ToUpperInvariant();
+                var identifier = Base64Url.EncodeToString(parameters.Modulus);
+                return identifier[.. Math.Min(identifier.Length, 40)].ToUpperInvariant();
             }
-
-            if (key is ECDsaSecurityKey ecsdaSecurityKey)
-            {
-                // Extract the ECDSA parameters from the signing credentials.
-                var parameters = ecsdaSecurityKey.ECDsa.ExportParameters(includePrivateParameters: false);
-
-                Debug.Assert(parameters.Q.X is not null, SR.GetResourceString(SR.ID4004));
-
-                // Only use the 40 first chars of the base64url-encoded X coordinate.
-                var identifier = Base64UrlEncoder.Encode(parameters.Q.X);
-                return identifier[..Math.Min(identifier.Length, 40)].ToUpperInvariant();
-            }
-
-            return null;
         }
 
         static string ComputeDefaultRegistrationId(OpenIddictClientRegistration registration)
@@ -212,7 +222,7 @@ public sealed class OpenIddictClientConfiguration : IPostConfigureOptions<OpenId
 
             algorithm.TransformFinalBlock([], 0, 0);
 
-            return Base64UrlEncoder.Encode(algorithm.Hash);
+            return Base64Url.EncodeToString(algorithm.Hash);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static void TransformBlock(HashAlgorithm algorithm, string input)
@@ -344,7 +354,7 @@ public sealed class OpenIddictClientConfiguration : IPostConfigureOptions<OpenId
         //
         // Note: a string comparer ignoring casing is deliberately used to prevent two
         // registrations using the same identifier with a different casing from being added.
-        if (options.Registrations.Count != options.Registrations.Select(registration => registration.RegistrationId)
+        if (options.Registrations.Count != options.Registrations.Select(static registration => registration.RegistrationId)
                                                                 .Distinct(StringComparer.OrdinalIgnoreCase)
                                                                 .Count())
         {

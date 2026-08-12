@@ -131,7 +131,7 @@ public sealed class OpenIddictClientDataProtectionFormatter : IOpenIddictClientD
         {
             // Read the version of the format used to serialize the properties.
             var version = reader.ReadInt32();
-            if (version != 1)
+            if (version is not 1)
             {
                 throw new InvalidOperationException(SR.GetResourceString(SR.ID0287));
             }
@@ -182,7 +182,7 @@ public sealed class OpenIddictClientDataProtectionFormatter : IOpenIddictClientD
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(principal);
 
-        var properties = new Dictionary<string, string>();
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal);
 
         // Unlike ASP.NET Core Data Protection-based tokens, tokens serialized using the new format
         // can't include authentication properties. To ensure tokens can be used with previous versions
@@ -206,7 +206,7 @@ public sealed class OpenIddictClientDataProtectionFormatter : IOpenIddictClientD
         SetArrayProperty(properties, Properties.Scopes,     principal.GetScopes());
 
         // Copy the principal and exclude the claim that were mapped to authentication properties.
-        principal = principal.Clone(claim => claim.Type is not (
+        principal = principal.Clone(static claim => claim.Type is not (
             Claims.Private.Audience           or
             Claims.Private.CodeVerifier       or
             Claims.Private.CreationDate       or

@@ -106,6 +106,7 @@ public static class OpenIddictConstants
         public const string RequestForgeryProtection = "rfp";
         public const string Role = "role";
         public const string Scope = "scope";
+        public const string SessionId = "sid";
         public const string StreetAddress = "street_address";
         public const string Subject = "sub";
         public const string TargetLinkUri = "target_link_uri";
@@ -154,6 +155,7 @@ public static class OpenIddictConstants
             public const string RequestTokenType = "oi_reqt_typ";
             public const string Resource = "oi_rsrc";
             public const string ResponseType = "oi_rsp_typ";
+            public const string SessionId = "oi_ses_id";
             public const string SigningAlgorithm = "oi_sign_alg";
             public const string Scope = "oi_scp";
             public const string StateTokenLifetime = "oi_stet_lft";
@@ -558,6 +560,7 @@ public static class OpenIddictConstants
         public static readonly char[] DoubleQuote = ['"'];
         public static readonly char[] EqualsSign = ['='];
         public static readonly char[] Hash = ['#'];
+        public static readonly char[] Plus = ['+'];
         public static readonly char[] QuestionMark = ['?'];
         public static readonly char[] Semicolon = [';'];
         public static readonly char[] Space = [' '];

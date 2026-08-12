@@ -5,8 +5,6 @@
  */
 
 using System.ComponentModel;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure.Annotations;
 using System.Data.Entity.ModelConfiguration;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
@@ -15,12 +13,12 @@ using OpenIddict.EntityFramework.Models;
 namespace OpenIddict.EntityFramework;
 
 /// <summary>
-/// Defines a relational mapping for the Token entity.
+/// Defines a relational mapping for the token entity.
 /// </summary>
-/// <typeparam name="TToken">The type of the Token entity.</typeparam>
-/// <typeparam name="TApplication">The type of the Application entity.</typeparam>
-/// <typeparam name="TAuthorization">The type of the Authorization entity.</typeparam>
-/// <typeparam name="TKey">The type of the Key entity.</typeparam>
+/// <typeparam name="TToken">The type of the token entity.</typeparam>
+/// <typeparam name="TApplication">The type of the application entity.</typeparam>
+/// <typeparam name="TAuthorization">The type of the authorization entity.</typeparam>
+/// <typeparam name="TKey">The type of the primary key.</typeparam>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class OpenIddictEntityFrameworkTokenConfiguration<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TToken,
@@ -38,11 +36,11 @@ public sealed class OpenIddictEntityFrameworkTokenConfiguration<
         // Entity Framework would throw an exception due to the TKey generic parameter
         // being non-nullable when using value types like short, int, long or Guid.
 
-        HasKey(static token => token.Id);
-
         Property(static token => token.ConcurrencyToken)
             .HasMaxLength(50)
             .IsConcurrencyToken();
+
+        HasKey(static token => token.Id);
 
         if (typeof(TKey) == typeof(string))
         {
@@ -54,12 +52,13 @@ public sealed class OpenIddictEntityFrameworkTokenConfiguration<
             Property(lambda).HasMaxLength(100);
         }
 
+        Property(static token => token.ReferenceId)
+            .HasMaxLength(100);
+
         // Warning: the index on the ReferenceId property MUST NOT be declared as
         // a unique index, as Entity Framework 6.x doesn't support creating indexes
         // with null-friendly WHERE conditions, unlike Entity Framework Core.
-        Property(static token => token.ReferenceId)
-            .HasMaxLength(100)
-            .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute()));
+        HasIndex(static token => token.ReferenceId);
 
         Property(static token => token.Status)
             .HasMaxLength(50);

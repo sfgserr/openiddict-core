@@ -245,12 +245,10 @@ public static class OpenIddictClientSystemIntegrationHelpers
             {
                 try
                 {
-#pragma warning disable CA1416
                     using var scenes = UIApplication.SharedApplication.ConnectedScenes;
                     var scene = scenes.ToArray<UIWindowScene>().FirstOrDefault();
 
                     return scene?.Windows.FirstOrDefault();
-#pragma warning restore CA1416
                 }
 
                 catch (InvalidCastException)
@@ -268,12 +266,10 @@ public static class OpenIddictClientSystemIntegrationHelpers
             {
                 try
                 {
-#pragma warning disable CA1416
                     using var scenes = UIApplication.SharedApplication.ConnectedScenes;
                     var scene = scenes.ToArray<UIWindowScene>().FirstOrDefault();
 
                     return scene?.Windows;
-#pragma warning restore CA1416
                 }
 
                 catch (InvalidCastException)
@@ -363,9 +359,10 @@ public static class OpenIddictClientSystemIntegrationHelpers
     /// Starts the system browser using the operating system shell.
     /// </summary>
     /// <param name="uri">The <see cref="Uri"/> to use.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns><see langword="true"/> if the browser could be started, <see langword="false"/> otherwise.</returns>
     [SupportedOSPlatform("windows")]
-    internal static async ValueTask<bool> TryLaunchBrowserWithShellExecuteAsync(Uri uri)
+    internal static async ValueTask<bool> TryLaunchBrowserWithShellExecuteAsync(Uri uri, CancellationToken cancellationToken)
     {
         try
         {
@@ -373,7 +370,7 @@ public static class OpenIddictClientSystemIntegrationHelpers
             {
                 FileName = uri.AbsoluteUri,
                 UseShellExecute = true
-            }));
+            }), cancellationToken);
 
             return true;
         }
@@ -442,11 +439,14 @@ public static class OpenIddictClientSystemIntegrationHelpers
     /// Starts the system browser using <see href="UIApplication"/>.
     /// </summary>
     /// <param name="uri">The <see cref="Uri"/> to use.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns><see langword="true"/> if the browser could be started, <see langword="false"/> otherwise.</returns>
     [SupportedOSPlatform("ios")]
     [SupportedOSPlatform("maccatalyst")]
-    internal static async ValueTask<bool> TryLaunchBrowserWithUIApplicationAsync(Uri uri)
+    internal static async ValueTask<bool> TryLaunchBrowserWithUIApplicationAsync(Uri uri, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             return await UIApplication.SharedApplication.OpenUrlAsync(new NSUrl(uri.AbsoluteUri), new UIApplicationOpenUrlOptions());
@@ -464,8 +464,9 @@ public static class OpenIddictClientSystemIntegrationHelpers
     /// </summary>
     /// <param name="uri">The <see cref="Uri"/> to use.</param>
     /// <returns><see langword="true"/> if the browser could be started, <see langword="false"/> otherwise.</returns>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     [SupportedOSPlatform("macos")]
-    internal static async ValueTask<bool> TryLaunchBrowserWithOpenAsync(Uri uri)
+    internal static async ValueTask<bool> TryLaunchBrowserWithOpenAsync(Uri uri, CancellationToken cancellationToken)
     {
         try
         {
@@ -481,7 +482,7 @@ public static class OpenIddictClientSystemIntegrationHelpers
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true
-            }));
+            }), cancellationToken);
 
             return true;
         }
@@ -496,9 +497,10 @@ public static class OpenIddictClientSystemIntegrationHelpers
     /// Starts the system browser using the "xdg-open" executable.
     /// </summary>
     /// <param name="uri">The <see cref="Uri"/> to use.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns><see langword="true"/> if the browser could be started, <see langword="false"/> otherwise.</returns>
     [SupportedOSPlatform("linux")]
-    internal static async ValueTask<bool> TryLaunchBrowserWithXdgOpenAsync(Uri uri)
+    internal static async ValueTask<bool> TryLaunchBrowserWithXdgOpenAsync(Uri uri, CancellationToken cancellationToken)
     {
         try
         {
@@ -514,7 +516,7 @@ public static class OpenIddictClientSystemIntegrationHelpers
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true
-            }));
+            }), cancellationToken);
 
             return true;
         }

@@ -35,6 +35,7 @@ public sealed class OpenIddictValidationDataProtectionFormatter : IOpenIddictVal
             .SetClaim(Claims.Private.AuthorizationId, GetStringProperty(properties, Properties.InternalAuthorizationId))
             .SetClaim(Claims.Private.CreationDate,    GetStringProperty(properties, Properties.Issued))
             .SetClaim(Claims.Private.ExpirationDate,  GetStringProperty(properties, Properties.Expires))
+            .SetClaim(Claims.Private.SessionId,       GetStringProperty(properties, Properties.InternalSessionId))
             .SetClaim(Claims.Private.TokenId,         GetStringProperty(properties, Properties.InternalTokenId));
 
         static (ClaimsPrincipal principal, IReadOnlyDictionary<string, string> properties) Read(BinaryReader reader)
@@ -123,7 +124,7 @@ public sealed class OpenIddictValidationDataProtectionFormatter : IOpenIddictVal
         {
             // Read the version of the format used to serialize the properties.
             var version = reader.ReadInt32();
-            if (version != 1)
+            if (version is not 1)
             {
                 throw new InvalidOperationException(SR.GetResourceString(SR.ID0287));
             }

@@ -38,7 +38,7 @@ public class OpenIddictEntityFrameworkScopeStore :
 /// <summary>
 /// Provides methods allowing to manage the scopes stored in a database.
 /// </summary>
-/// <typeparam name="TScope">The type of the Scope entity.</typeparam>
+/// <typeparam name="TScope">The type of the scope entity.</typeparam>
 /// <typeparam name="TKey">The type of the entity primary keys.</typeparam>
 public class OpenIddictEntityFrameworkScopeStore<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TScope,
@@ -122,7 +122,7 @@ public class OpenIddictEntityFrameworkScopeStore<
             // Reset the state of the entity to prevents future calls to SaveChangesAsync() from failing.
             context.Entry(scope).State = EntityState.Unchanged;
 
-            throw new ConcurrencyException(SR.GetResourceString(SR.ID0245), exception);
+            throw new ConcurrencyException(SR.GetResourceString(SR.ID0239), exception);
         }
     }
 
@@ -134,17 +134,7 @@ public class OpenIddictEntityFrameworkScopeStore<
         var context = await Context.GetDbContextAsync(cancellationToken);
         var key = ConvertIdentifierFromString(identifier);
 
-        return GetTrackedEntity() is TScope scope ? scope : await QueryAsync();
-
-        TScope? GetTrackedEntity() =>
-            (from entry in context.ChangeTracker.Entries<TScope>()
-             where entry.Entity.Id is TKey identifier && identifier.Equals(key)
-             select entry.Entity).FirstOrDefault();
-
-        Task<TScope?> QueryAsync() =>
-            (from scope in context.Set<TScope>()
-             where scope.Id!.Equals(key)
-             select scope).FirstOrDefaultAsync(cancellationToken);
+        return await context.Set<TScope>().FindAsync(cancellationToken, [key]);
     }
 
     /// <inheritdoc/>
@@ -194,8 +184,7 @@ public class OpenIddictEntityFrameworkScopeStore<
     }
 
     /// <inheritdoc/>
-    public virtual IAsyncEnumerable<TScope> FindByResourceAsync(
-        string resource, CancellationToken cancellationToken)
+    public virtual IAsyncEnumerable<TScope> FindByResourceAsync(string resource, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(resource);
 
@@ -215,7 +204,7 @@ public class OpenIddictEntityFrameworkScopeStore<
                           where scope.Resources!.Contains(resource)
                           select scope).AsAsyncEnumerable(cancellationToken);
 
-            await foreach (var scope in scopes)
+            await foreach (var scope in scopes.WithCancellation(cancellationToken))
             {
                 var resources = await GetResourcesAsync(scope, cancellationToken);
                 if (resources.Contains(resource, StringComparer.Ordinal))
@@ -253,7 +242,7 @@ public class OpenIddictEntityFrameworkScopeStore<
 
         if (string.IsNullOrEmpty(scope.Descriptions))
         {
-            return new(ImmutableDictionary.Create<CultureInfo, string>());
+            return new([]);
         }
 
         // Note: parsing the stringified descriptions is an expensive operation.
@@ -299,7 +288,7 @@ public class OpenIddictEntityFrameworkScopeStore<
 
         if (string.IsNullOrEmpty(scope.DisplayNames))
         {
-            return new(ImmutableDictionary.Create<CultureInfo, string>());
+            return new([]);
         }
 
         // Note: parsing the stringified display names is an expensive operation.
@@ -353,7 +342,7 @@ public class OpenIddictEntityFrameworkScopeStore<
 
         if (string.IsNullOrEmpty(scope.Properties))
         {
-            return new(ImmutableDictionary.Create<string, JsonElement>());
+            return new([]);
         }
 
         // Note: parsing the stringified properties is an expensive operation.
@@ -365,7 +354,7 @@ public class OpenIddictEntityFrameworkScopeStore<
                  .SetSlidingExpiration(TimeSpan.FromMinutes(1));
 
             using var document = JsonDocument.Parse(scope.Properties);
-            var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>();
+            var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>(StringComparer.Ordinal);
 
             foreach (var property in document.RootElement.EnumerateObject())
             {
@@ -427,7 +416,7 @@ public class OpenIddictEntityFrameworkScopeStore<
         catch (MemberAccessException exception)
         {
             return new(Task.FromException<TScope>(
-                new InvalidOperationException(SR.GetResourceString(SR.ID0246), exception)));
+                new InvalidOperationException(SR.GetResourceString(SR.ID0240), exception)));
         }
     }
 
@@ -439,12 +428,12 @@ public class OpenIddictEntityFrameworkScopeStore<
 
         IQueryable<TScope> query = context.Set<TScope>().OrderBy(scope => scope.Id!);
 
-        if (offset.HasValue)
+        if (offset is not null)
         {
             query = query.Skip(offset.Value);
         }
 
-        if (count.HasValue)
+        if (count is not null)
         {
             query = query.Take(count.Value);
         }
@@ -491,7 +480,7 @@ public class OpenIddictEntityFrameworkScopeStore<
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        if (descriptions is not { Count: > 0 })
+        if (descriptions is not { IsEmpty: false })
         {
             scope.Descriptions = null;
 
@@ -537,7 +526,7 @@ public class OpenIddictEntityFrameworkScopeStore<
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        if (names is not { Count: > 0 })
+        if (names is not { IsEmpty: false })
         {
             scope.DisplayNames = null;
 
@@ -583,7 +572,7 @@ public class OpenIddictEntityFrameworkScopeStore<
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        if (properties is not { Count: > 0 })
+        if (properties is not { IsEmpty: false })
         {
             scope.Properties = null;
 
@@ -672,7 +661,7 @@ public class OpenIddictEntityFrameworkScopeStore<
             // Reset the state of the entity to prevents future calls to SaveChangesAsync() from failing.
             context.Entry(scope).State = EntityState.Unchanged;
 
-            throw new ConcurrencyException(SR.GetResourceString(SR.ID0245), exception);
+            throw new ConcurrencyException(SR.GetResourceString(SR.ID0239), exception);
         }
     }
 
@@ -694,17 +683,14 @@ public class OpenIddictEntityFrameworkScopeStore<
             return (TKey?) (object?) identifier;
         }
 
-        else
-        {
-            var converter =
+        var converter =
 #if NET
-                TypeDescriptor.GetConverterFromRegisteredType(typeof(TKey));
+            TypeDescriptor.GetConverterFromRegisteredType(typeof(TKey));
 #else
-                TypeDescriptor.GetConverter(typeof(TKey));
+            TypeDescriptor.GetConverter(typeof(TKey));
 #endif
 
-            return (TKey?) converter.ConvertFromInvariantString(identifier);
-        }
+        return (TKey?) converter.ConvertFromInvariantString(identifier);
     }
 
     /// <summary>
@@ -725,16 +711,13 @@ public class OpenIddictEntityFrameworkScopeStore<
             return value;
         }
 
-        else
-        {
-            var converter =
+        var converter =
 #if NET
-                TypeDescriptor.GetConverterFromRegisteredType(typeof(TKey));
+            TypeDescriptor.GetConverterFromRegisteredType(typeof(TKey));
 #else
-                TypeDescriptor.GetConverter(typeof(TKey));
+            TypeDescriptor.GetConverter(typeof(TKey));
 #endif
 
-            return converter.ConvertToInvariantString(identifier);
-        }
+        return converter.ConvertToInvariantString(identifier);
     }
 }

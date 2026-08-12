@@ -27,7 +27,9 @@ public static class OpenIddictEntityFrameworkHelpers
     public static DbModelBuilder UseOpenIddict(this DbModelBuilder builder)
         => builder.UseOpenIddict<OpenIddictEntityFrameworkApplication,
                                  OpenIddictEntityFrameworkAuthorization,
+                                 OpenIddictEntityFrameworkResource,
                                  OpenIddictEntityFrameworkScope,
+                                 OpenIddictEntityFrameworkSession,
                                  OpenIddictEntityFrameworkToken, string>();
 
     /// <summary>
@@ -36,19 +38,23 @@ public static class OpenIddictEntityFrameworkHelpers
     /// </summary>
     /// <remarks>
     /// Note: when using custom entities, the new entities MUST be registered by calling
-    /// <see cref="OpenIddictEntityFrameworkBuilder.ReplaceDefaultEntities{TApplication, TAuthorization, TScope, TToken, TKey}"/>.
+    /// <see cref="OpenIddictEntityFrameworkBuilder.ReplaceDefaultEntities{TApplication, TAuthorization, TResource, TScope, TSession, TToken, TKey}"/>.
     /// </remarks>
     /// <param name="builder">The builder used to configure the Entity Framework context.</param>
     /// <returns>The Entity Framework context builder.</returns>
     public static DbModelBuilder UseOpenIddict<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TApplication,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAuthorization,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TResource,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TScope,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TSession,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TToken,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TKey>(this DbModelBuilder builder)
         where TApplication : OpenIddictEntityFrameworkApplication<TKey, TAuthorization, TToken>
         where TAuthorization : OpenIddictEntityFrameworkAuthorization<TKey, TApplication, TToken>
+        where TResource : OpenIddictEntityFrameworkResource<TKey>
         where TScope : OpenIddictEntityFrameworkScope<TKey>
+        where TSession : OpenIddictEntityFrameworkSession<TKey, TApplication, TAuthorization>
         where TToken : OpenIddictEntityFrameworkToken<TKey, TApplication, TAuthorization>
         where TKey : notnull, IEquatable<TKey>
     {
@@ -57,7 +63,9 @@ public static class OpenIddictEntityFrameworkHelpers
         builder.Configurations
             .Add(new OpenIddictEntityFrameworkApplicationConfiguration<TApplication, TAuthorization, TToken, TKey>())
             .Add(new OpenIddictEntityFrameworkAuthorizationConfiguration<TAuthorization, TApplication, TToken, TKey>())
+            .Add(new OpenIddictEntityFrameworkResourceConfiguration<TResource, TKey>())
             .Add(new OpenIddictEntityFrameworkScopeConfiguration<TScope, TKey>())
+            .Add(new OpenIddictEntityFrameworkSessionConfiguration<TSession, TApplication, TAuthorization, TToken, TKey>())
             .Add(new OpenIddictEntityFrameworkTokenConfiguration<TToken, TApplication, TAuthorization, TKey>());
 
         return builder;
@@ -70,7 +78,9 @@ public static class OpenIddictEntityFrameworkHelpers
     /// <param name="source">The query source.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>The streamed async enumeration containing the results.</returns>
+#pragma warning disable MA0156
     internal static IAsyncEnumerable<T> AsAsyncEnumerable<T>(this IQueryable<T> source, CancellationToken cancellationToken)
+#pragma warning restore MA0156
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -78,7 +88,7 @@ public static class OpenIddictEntityFrameworkHelpers
 
         static async IAsyncEnumerable<T> ExecuteAsync(IQueryable<T> source, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            using var enumerator = ((IDbAsyncEnumerable<T>)source).GetAsyncEnumerator();
+            using var enumerator = ((IDbAsyncEnumerable<T>) source).GetAsyncEnumerator();
 
             while (await enumerator.MoveNextAsync(cancellationToken))
             {

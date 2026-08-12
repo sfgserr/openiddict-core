@@ -69,7 +69,9 @@ public class OpenIddictCoreExtensionsTests
     [Theory]
     [InlineData(typeof(OpenIddictApplicationManager<>))]
     [InlineData(typeof(OpenIddictAuthorizationManager<>))]
+    [InlineData(typeof(OpenIddictResourceManager<>))]
     [InlineData(typeof(OpenIddictScopeManager<>))]
+    [InlineData(typeof(OpenIddictSessionManager<>))]
     [InlineData(typeof(OpenIddictTokenManager<>))]
     public void AddCore_RegistersDefaultManagers(Type type)
     {
@@ -87,7 +89,9 @@ public class OpenIddictCoreExtensionsTests
     [Theory]
     [InlineData(typeof(IOpenIddictApplicationManager))]
     [InlineData(typeof(IOpenIddictAuthorizationManager))]
+    [InlineData(typeof(IOpenIddictResourceManager))]
     [InlineData(typeof(IOpenIddictScopeManager))]
+    [InlineData(typeof(IOpenIddictSessionManager))]
     [InlineData(typeof(IOpenIddictTokenManager))]
     public void AddCore_RegistersUntypedProxies(Type type)
     {
@@ -139,6 +143,24 @@ public class OpenIddictCoreExtensionsTests
     }
 
     [Fact]
+    public void AddCore_ResolvingUntypedResourceManagerThrowsAnException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var builder = new OpenIddictBuilder(services);
+
+        // Act
+        builder.AddCore();
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<InvalidOperationException>(provider.GetRequiredService<IOpenIddictResourceManager>);
+
+        Assert.Equal(SR.GetResourceString(SR.ID0472), exception.Message);
+    }
+
+    [Fact]
     public void AddCore_ResolvingUntypedScopeManagerThrowsAnException()
     {
         // Arrange
@@ -152,6 +174,24 @@ public class OpenIddictCoreExtensionsTests
         var provider = services.BuildServiceProvider();
 
         var exception = Assert.Throws<InvalidOperationException>(provider.GetRequiredService<IOpenIddictScopeManager>);
+
+        Assert.Equal(SR.GetResourceString(SR.ID0472), exception.Message);
+    }
+
+    [Fact]
+    public void AddCore_ResolvingUntypedSessionManagerThrowsAnException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var builder = new OpenIddictBuilder(services);
+
+        // Act
+        builder.AddCore();
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<InvalidOperationException>(provider.GetRequiredService<IOpenIddictSessionManager>);
 
         Assert.Equal(SR.GetResourceString(SR.ID0472), exception.Message);
     }

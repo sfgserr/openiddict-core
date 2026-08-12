@@ -16,7 +16,7 @@ namespace OpenIddict.Core;
 /// <summary>
 /// Provides methods allowing to cache tokens after retrieving them from the store.
 /// </summary>
-/// <typeparam name="TToken">The type of the Token entity.</typeparam>
+/// <typeparam name="TToken">The type of the token entity.</typeparam>
 public sealed class OpenIddictTokenCache<TToken> : IOpenIddictTokenCache<TToken>, IDisposable where TToken : class
 {
     private readonly MemoryCache _cache;
@@ -102,12 +102,12 @@ public sealed class OpenIddictTokenCache<TToken> : IOpenIddictTokenCache<TToken>
 
     /// <inheritdoc/>
     public async IAsyncEnumerable<TToken> FindAsync(
-        string? subject, string? client,
-        string? status, string? type, [EnumeratorCancellation] CancellationToken cancellationToken)
+        (string? Subject, string? ApplicationId, string? Status, string? Type) query,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Note: this method is only partially cached.
 
-        await foreach (var token in _store.FindAsync(subject, client, status, type, cancellationToken))
+        await foreach (var token in _store.FindAsync(query, cancellationToken))
         {
             await AddAsync(token, cancellationToken);
 
@@ -324,8 +324,8 @@ public sealed class OpenIddictTokenCache<TToken> : IOpenIddictTokenCache<TToken>
 
         if (token is not null)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(token, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(token, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = 1L;
@@ -347,8 +347,8 @@ public sealed class OpenIddictTokenCache<TToken> : IOpenIddictTokenCache<TToken>
 
         foreach (var token in tokens)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(token, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(token, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = tokens.Length;
@@ -362,7 +362,7 @@ public sealed class OpenIddictTokenCache<TToken> : IOpenIddictTokenCache<TToken>
     /// <param name="token">The token associated with the expiration signal.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns an expiration signal for the specified token.
     /// </returns>
     private async ValueTask<IChangeToken> CreateExpirationSignalAsync(TToken token, CancellationToken cancellationToken)

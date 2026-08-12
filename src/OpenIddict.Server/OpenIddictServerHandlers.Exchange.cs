@@ -4,6 +4,7 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -13,7 +14,6 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 
 namespace OpenIddict.Server;
 
@@ -110,13 +110,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -173,13 +173,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -227,13 +227,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidGrant,
@@ -266,13 +266,13 @@ public static partial class OpenIddictServerHandlers
                         return;
                     }
 
-                    else if (@event.IsRequestSkipped)
+                    if (@event.IsRequestSkipped)
                     {
                         context.SkipRequest();
                         return;
                     }
 
-                    else if (@event.IsRejected)
+                    if (@event.IsRejected)
                     {
                         context.Reject(
                             error: @event.Error ?? Errors.InvalidRequest,
@@ -321,7 +321,7 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
@@ -1019,10 +1019,10 @@ public static partial class OpenIddictServerHandlers
                         // invalid core configuration exceptions are not thrown even if the managers were registered.
                         var options = provider.GetRequiredService<IOptionsMonitor<OpenIddictServerOptions>>().CurrentValue;
 
-                        return options.EnableDegradedMode ?
-                            new ValidateScopes() :
-                            new ValidateScopes(provider.GetService<IOpenIddictScopeManager>() ??
-                                throw new InvalidOperationException(SR.GetResourceString(SR.ID0016)));
+                        return options.EnableDegradedMode
+                            ? new ValidateScopes()
+                            : new ValidateScopes(provider.GetService<IOpenIddictScopeManager>()
+                                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0016)));
                     })
                     .SetOrder(ValidateResourceParameter.Descriptor.Order + 1_000)
                     .SetType(OpenIddictServerHandlerType.BuiltIn)
@@ -1047,9 +1047,9 @@ public static partial class OpenIddictServerHandlers
                         throw new InvalidOperationException(SR.GetResourceString(SR.ID0016));
                     }
 
-                    await foreach (var scope in _scopeManager.FindByNamesAsync([.. scopes]))
+                    await foreach (var scope in _scopeManager.FindByNamesAsync([.. scopes], context.CancellationToken))
                     {
-                        var name = await _scopeManager.GetNameAsync(scope);
+                        var name = await _scopeManager.GetNameAsync(scope, context.CancellationToken);
                         if (!string.IsNullOrEmpty(name))
                         {
                             scopes.Remove(name);
@@ -1118,26 +1118,62 @@ public static partial class OpenIddictServerHandlers
         /// </summary>
         public sealed class ValidateResources : IOpenIddictServerHandler<ValidateTokenRequestContext>
         {
+            private readonly IOpenIddictResourceManager? _resourceManager;
+
+            public ValidateResources(IOpenIddictResourceManager? resourceManager = null)
+                => _resourceManager = resourceManager;
+
             /// <summary>
             /// Gets the default descriptor definition assigned to this handler.
             /// </summary>
             public static OpenIddictServerHandlerDescriptor Descriptor { get; }
                 = OpenIddictServerHandlerDescriptor.CreateBuilder<ValidateTokenRequestContext>()
                     .AddFilter<RequireResourceValidationEnabled>()
-                    .UseSingletonHandler<ValidateResources>()
+                    .UseScopedHandler(static provider =>
+                    {
+                        // Note: the resource manager is only resolved if the degraded mode was not enabled to ensure
+                        // invalid core configuration exceptions are not thrown even if the managers were registered.
+                        var options = provider.GetRequiredService<IOptionsMonitor<OpenIddictServerOptions>>().CurrentValue;
+
+                        return options.EnableDegradedMode
+                            ? new ValidateResources()
+                            : new ValidateResources(provider.GetService<IOpenIddictResourceManager>()
+                                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0016)));
+                    })
                     .SetOrder(ValidateAudiences.Descriptor.Order + 1_000)
                     .SetType(OpenIddictServerHandlerType.BuiltIn)
                     .Build();
 
             /// <inheritdoc/>
-            public ValueTask HandleAsync(ValidateTokenRequestContext context)
+            public async ValueTask HandleAsync(ValidateTokenRequestContext context)
             {
                 ArgumentNullException.ThrowIfNull(context);
 
-                // If at least one resource was not recognized, return an error.
+                // If all the specified resources are registered in the options, avoid making a database lookup.
                 var resources = context.Request.GetResources().ToHashSet(StringComparer.Ordinal);
                 resources.ExceptWith(context.Options.Resources.Select(static resource => resource.AbsoluteUri));
 
+                // Note: the remaining resources are only checked if the degraded mode was not enabled,
+                // as this requires using the resource manager, which is never used with the degraded mode,
+                // even if the service was registered and resolved from the dependency injection container.
+                if (resources.Count is not 0 && !context.Options.EnableDegradedMode)
+                {
+                    if (_resourceManager is null)
+                    {
+                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0016));
+                    }
+
+                    await foreach (var resource in _resourceManager.FindByNamesAsync([.. resources], context.CancellationToken))
+                    {
+                        var name = await _resourceManager.GetNameAsync(resource, context.CancellationToken);
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            resources.Remove(name);
+                        }
+                    }
+                }
+
+                // If at least one resource was not recognized, return an error.
                 if (resources.Count is not 0)
                 {
                     context.Logger.LogInformation(6273, SR.GetResourceString(SR.ID6273), resources);
@@ -1147,10 +1183,8 @@ public static partial class OpenIddictServerHandlers
                         description: SR.FormatID2190(Parameters.Resource),
                         uri: SR.FormatID8000(SR.ID2190));
 
-                    return ValueTask.CompletedTask;
+                    return;
                 }
-
-                return ValueTask.CompletedTask;
             }
         }
 
@@ -1192,13 +1226,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -1250,11 +1284,11 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 // Reject the request if the application is not allowed to use the token endpoint.
-                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Endpoints.Token))
+                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Endpoints.Token, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6086, SR.GetResourceString(SR.ID6086), context.ClientId);
 
@@ -1302,11 +1336,11 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 // Reject the request if the application is not allowed to use the specified grant type.
-                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.GrantType + context.Request.GrantType))
+                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.GrantType + context.Request.GrantType, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6087, SR.GetResourceString(SR.ID6087), context.ClientId, context.Request.GrantType);
 
@@ -1321,7 +1355,7 @@ public static partial class OpenIddictServerHandlers
                 // Reject the request if the offline_access scope was request and if
                 // the application is not allowed to use the refresh token grant type.
                 if (context.Request.HasScope(Scopes.OfflineAccess) &&
-                    !await _applicationManager.HasPermissionAsync(application, Permissions.GrantTypes.RefreshToken))
+                    !await _applicationManager.HasPermissionAsync(application, Permissions.GrantTypes.RefreshToken, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6088, SR.GetResourceString(SR.ID6088), context.ClientId, Scopes.OfflineAccess);
 
@@ -1369,8 +1403,8 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 foreach (var scope in context.Request.GetScopes())
                 {
@@ -1382,7 +1416,7 @@ public static partial class OpenIddictServerHandlers
                     }
 
                     // Reject the request if the application is not allowed to use the iterated scope.
-                    if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.Scope + scope))
+                    if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.Scope + scope, context.CancellationToken))
                     {
                         context.Logger.LogInformation(6089, SR.GetResourceString(SR.ID6089), context.ClientId, scope);
 
@@ -1431,13 +1465,13 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 foreach (var audience in context.Request.GetAudiences())
                 {
                     // Reject the request if the application is not allowed to use the iterated audience.
-                    if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.Audience + audience))
+                    if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.Audience + audience, context.CancellationToken))
                     {
                         context.Logger.LogInformation(6278, SR.GetResourceString(SR.ID6276), context.ClientId, audience);
 
@@ -1486,13 +1520,13 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 foreach (var resource in context.Request.GetResources())
                 {
                     // Reject the request if the application is not allowed to use the iterated resource.
-                    if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.Resource + resource))
+                    if (!await _applicationManager.HasPermissionAsync(application, Permissions.Prefixes.Resource + resource, context.CancellationToken))
                     {
                         context.Logger.LogInformation(6279, SR.GetResourceString(SR.ID6277), context.ClientId, resource);
 
@@ -1552,10 +1586,10 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
-                if (await _applicationManager.HasRequirementAsync(application, Requirements.Features.ProofKeyForCodeExchange))
+                if (await _applicationManager.HasRequirementAsync(application, Requirements.Features.ProofKeyForCodeExchange, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6077, SR.GetResourceString(SR.ID6077), Parameters.CodeVerifier);
 
@@ -1993,7 +2027,7 @@ public static partial class OpenIddictServerHandlers
                     // In this case, the raw bytes of the verifier are directly compared to the challenge.
                     CodeChallengeMethods.Plain => context.Request.CodeVerifier,
 
-                    CodeChallengeMethods.Sha256 => Base64UrlEncoder.Encode(
+                    CodeChallengeMethods.Sha256 => Base64Url.EncodeToString(
                         SHA256.HashData(Encoding.ASCII.GetBytes(context.Request.CodeVerifier))),
 
                     null or { Length: 0 } => throw new InvalidOperationException(SR.GetResourceString(SR.ID0268)),
@@ -2065,11 +2099,7 @@ public static partial class OpenIddictServerHandlers
                     return ValueTask.CompletedTask;
                 }
 
-                // When an explicit scope parameter has been included in the token request,
-                // the authorization server MUST ensure that it doesn't contain scopes
-                // that were not granted during the initial authorization/token request.
-                // See https://tools.ietf.org/html/rfc6749#section-6 for more information.
-                else if (!scopes.IsSupersetOf(context.Request.GetScopes()))
+                if (!scopes.IsSupersetOf(context.Request.GetScopes()))
                 {
                     context.Logger.LogInformation(6095, SR.GetResourceString(SR.ID6095), Parameters.Scope);
 
@@ -2115,8 +2145,8 @@ public static partial class OpenIddictServerHandlers
                 }
 
                 var notification = context.Transaction.GetProperty<ValidateTokenRequestContext>(
-                    typeof(ValidateTokenRequestContext).FullName!) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0007));
+                    typeof(ValidateTokenRequestContext).FullName!)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0007));
 
                 context.ActorTokenPrincipal = notification.ActorTokenPrincipal;
                 context.AuthorizationCodePrincipal = notification.AuthorizationCodePrincipal;
@@ -2138,7 +2168,7 @@ public static partial class OpenIddictServerHandlers
                     // reused as-is and that a new ad-hoc authorization, separate from the one attached
                     // to the subject token will be created and attached to the issued token by OpenIddict.
                     GrantTypes.TokenExchange => notification.SubjectTokenPrincipal
-                        ?.Clone(claim => !claim.Type.StartsWith(Claims.Prefixes.Private)),
+                        ?.Clone(claim => !claim.Type.StartsWith(Claims.Prefixes.Private, StringComparison.Ordinal)),
 
                     _ => null
                 };

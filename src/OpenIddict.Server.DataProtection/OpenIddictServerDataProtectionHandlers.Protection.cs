@@ -4,12 +4,12 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.Collections.Immutable;
 using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using static OpenIddict.Server.DataProtection.OpenIddictServerDataProtectionConstants.Purposes;
 using static OpenIddict.Server.OpenIddictServerHandlers.Protection;
 using Schemes = OpenIddict.Server.DataProtection.OpenIddictServerDataProtectionConstants.Purposes.Schemes;
@@ -109,20 +109,20 @@ public static partial class OpenIddictServerDataProtectionHandlers
                     0 => context.TokenTypeHint switch
                     {
                         TokenTypeHints.RefreshToken =>
-                            ValidateToken(TokenTypeIdentifiers.RefreshToken)              ??
-                            ValidateToken(TokenTypeIdentifiers.AccessToken)               ??
-                            ValidateToken(TokenTypeIdentifiers.Private.AuthorizationCode) ??
-                            ValidateToken(TokenTypeIdentifiers.Private.DeviceCode)        ??
-                            ValidateToken(TokenTypeIdentifiers.Private.UserCode)          ??
-                            ValidateToken(TokenTypeIdentifiers.Private.RequestToken),
+                            ValidateToken(TokenTypeIdentifiers.RefreshToken)
+                            ?? ValidateToken(TokenTypeIdentifiers.AccessToken)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.AuthorizationCode)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.DeviceCode)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.UserCode)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.RequestToken),
 
                         TokenTypeHints.AccessToken or _ =>
-                            ValidateToken(TokenTypeIdentifiers.AccessToken)               ??
-                            ValidateToken(TokenTypeIdentifiers.RefreshToken)              ??
-                            ValidateToken(TokenTypeIdentifiers.Private.AuthorizationCode) ??
-                            ValidateToken(TokenTypeIdentifiers.Private.DeviceCode)        ??
-                            ValidateToken(TokenTypeIdentifiers.Private.UserCode)          ??
-                            ValidateToken(TokenTypeIdentifiers.Private.RequestToken),
+                            ValidateToken(TokenTypeIdentifiers.AccessToken)
+                            ?? ValidateToken(TokenTypeIdentifiers.RefreshToken)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.AuthorizationCode)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.DeviceCode)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.UserCode)
+                            ?? ValidateToken(TokenTypeIdentifiers.Private.RequestToken),
                     },
 
                     // If a single valid token type was set, ignore the specified token type hint.
@@ -229,7 +229,7 @@ public static partial class OpenIddictServerDataProtectionHandlers
 
                     try
                     {
-                        using var buffer = new MemoryStream(protector.Unprotect(Base64UrlEncoder.DecodeBytes(context.Token)));
+                        using var buffer = new MemoryStream(protector.Unprotect(Base64Url.DecodeFromChars(context.Token)));
                         using var reader = new BinaryReader(buffer);
 
                         // Note: since the data format relies on a data protector using different "purposes" strings
@@ -382,7 +382,7 @@ public static partial class OpenIddictServerDataProtectionHandlers
 
                 _options.CurrentValue.Formatter.WriteToken(writer, context.Principal);
 
-                context.Token = Base64UrlEncoder.Encode(protector.Protect(buffer.ToArray()));
+                context.Token = Base64Url.EncodeToString(protector.Protect(buffer.ToArray()));
 
                 context.Logger.LogTrace(6016, SR.GetResourceString(SR.ID6016), context.TokenType,
                     context.Token, context.Principal.Claims);

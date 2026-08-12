@@ -5,7 +5,6 @@
  */
 
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -896,7 +895,7 @@ public class OpenIddictApplicationManagerTests
 
         // Act and assert
         var exception = await Assert.ThrowsAsync<ArgumentNullException>(
-            () => manager.GetLocalizedDisplayNameAsync(application: null!).AsTask());
+            () => manager.GetLocalizedDisplayNameAsync(application: null!, culture: CultureInfo.InvariantCulture).AsTask());
 
         Assert.Equal("application", exception.ParamName);
     }
@@ -1587,7 +1586,7 @@ public class OpenIddictApplicationManagerTests
         var hash1 = await manager.ObfuscateClientSecretAsync("my-secret");
         var hash2 = await manager.ObfuscateClientSecretAsync("my-secret");
 
-        Assert.NotEqual(hash1, hash2);
+        Assert.NotEqual(hash1, hash2, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -1757,7 +1756,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2036));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2036), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1802,7 +1801,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2111));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2111), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1834,7 +1833,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2050));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2050), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1866,7 +1865,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2112));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2112), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1901,7 +1900,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2114));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2114), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1939,7 +1938,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2113));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2113), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1980,7 +1979,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2113));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2113), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2015,7 +2014,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2061));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2061), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2050,7 +2049,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2062));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2062), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2085,7 +2084,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2115));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2115), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2120,7 +2119,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.FormatID2134(Parameters.Iss));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.FormatID2134(Parameters.Iss), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2155,7 +2154,7 @@ public class OpenIddictApplicationManagerTests
         var results = await manager.ValidateAsync(application).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2115));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2115), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -3538,9 +3537,9 @@ public class OpenIddictApplicationManagerTests
         Assert.Equal("certificate", exception.ParamName);
     }
 
-    public class CustomApplication { }
+    public class CustomApplication;
 
-    private class CustomApplicationManagerWithProtectedAccess : OpenIddictApplicationManager<CustomApplication>
+    private sealed class CustomApplicationManagerWithProtectedAccess : OpenIddictApplicationManager<CustomApplication>
     {
         public CustomApplicationManagerWithProtectedAccess(
             IOpenIddictApplicationCache<CustomApplication> cache,

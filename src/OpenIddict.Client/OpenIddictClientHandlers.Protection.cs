@@ -4,6 +4,7 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
@@ -273,7 +274,7 @@ public static partial class OpenIddictClientHandlers
                 }
 
                 // If the reference token cannot be found, don't return an error to allow another handler to validate it.
-                var token = await _tokenManager.FindByReferenceIdAsync(context.Token);
+                var token = await _tokenManager.FindByReferenceIdAsync(context.Token, context.CancellationToken);
                 if (token is null)
                 {
                     return;
@@ -283,8 +284,8 @@ public static partial class OpenIddictClientHandlers
                 if (!(context.ValidTokenTypes.Count switch
                 {
                     0 => true, // If no specific token type is expected, accept all token types at this stage.
-                    1 => await _tokenManager.HasTypeAsync(token, context.ValidTokenTypes.ElementAt(0)),
-                    _ => await _tokenManager.HasTypeAsync(token, [.. context.ValidTokenTypes])
+                    1 => await _tokenManager.HasTypeAsync(token, context.ValidTokenTypes.ElementAt(0), context.CancellationToken),
+                    _ => await _tokenManager.HasTypeAsync(token, [.. context.ValidTokenTypes], context.CancellationToken)
                 }))
                 {
                     context.Reject(
@@ -295,7 +296,7 @@ public static partial class OpenIddictClientHandlers
                     return;
                 }
 
-                var payload = await _tokenManager.GetPayloadAsync(token);
+                var payload = await _tokenManager.GetPayloadAsync(token, context.CancellationToken);
                 if (string.IsNullOrEmpty(payload))
                 {
                     throw new InvalidOperationException(SR.GetResourceString(SR.ID0026));
@@ -306,7 +307,7 @@ public static partial class OpenIddictClientHandlers
                 // used to restore the properties associated with the token.
                 context.IsReferenceToken = true;
                 context.Token = payload;
-                context.TokenId = await _tokenManager.GetIdAsync(token);
+                context.TokenId = await _tokenManager.GetIdAsync(token, context.CancellationToken);
             }
         }
 
@@ -409,7 +410,7 @@ public static partial class OpenIddictClientHandlers
                     foreach (var claim in result.ClaimsIdentity.Claims)
                     {
                         // Exclude claims starting with "oi_" from tokens that are not fully trusted.
-                        if (claim.Type.StartsWith(Claims.Prefixes.Private))
+                        if (claim.Type.StartsWith(Claims.Prefixes.Private, StringComparison.Ordinal))
                         {
                             continue;
                         }
@@ -423,7 +424,7 @@ public static partial class OpenIddictClientHandlers
                     identity = result.ClaimsIdentity.Clone(claim => claim switch
                     {
                         // Exclude claims starting with "oi_", unless the token is a state token.
-                        { Type: string type } when type.StartsWith(Claims.Prefixes.Private) &&
+                        { Type: string type } when type.StartsWith(Claims.Prefixes.Private, StringComparison.Ordinal) &&
                             result.TokenType is not JsonWebTokenTypes.Private.StateToken => false,
 
                         _ => true // Allow any other claim.
@@ -574,7 +575,7 @@ public static partial class OpenIddictClientHandlers
                 }
 
                 // If the token entry cannot be found, return a generic error.
-                var token = await _tokenManager.FindByIdAsync(identifier);
+                var token = await _tokenManager.FindByIdAsync(identifier, context.CancellationToken);
                 if (token is null)
                 {
                     context.Reject(
@@ -588,9 +589,9 @@ public static partial class OpenIddictClientHandlers
                 // If the token was not validated as a reference token but has a reference identifier attached, this
                 // may indicate that the payload stored in the database has leaked and is being used as a regular,
                 // non-reference token. To prevent this, reject the token if the reference identifier is not null.
-                if (!context.IsReferenceToken && !string.IsNullOrEmpty(await _tokenManager.GetReferenceIdAsync(token)))
+                if (!context.IsReferenceToken && !string.IsNullOrEmpty(await _tokenManager.GetReferenceIdAsync(token, context.CancellationToken)))
                 {
-                    context.Logger.LogWarning(6292, SR.GetResourceString(SR.ID6292), await _tokenManager.GetIdAsync(token));
+                    context.Logger.LogWarning(6292, SR.GetResourceString(SR.ID6292), await _tokenManager.GetIdAsync(token, context.CancellationToken));
 
                     context.Reject(
                         error: Errors.InvalidToken,
@@ -602,10 +603,10 @@ public static partial class OpenIddictClientHandlers
 
                 // Restore the creation/expiration dates/identifiers from the token entry metadata.
                 context.Principal
-                    .SetCreationDate(await _tokenManager.GetCreationDateAsync(token))
-                    .SetExpirationDate(await _tokenManager.GetExpirationDateAsync(token))
-                    .SetTokenId(context.TokenId = await _tokenManager.GetIdAsync(token))
-                    .SetTokenType(await _tokenManager.GetTypeAsync(token));
+                    .SetCreationDate(await _tokenManager.GetCreationDateAsync(token, context.CancellationToken))
+                    .SetExpirationDate(await _tokenManager.GetExpirationDateAsync(token, context.CancellationToken))
+                    .SetTokenId(context.TokenId = await _tokenManager.GetIdAsync(token, context.CancellationToken))
+                    .SetTokenType(await _tokenManager.GetTypeAsync(token, context.CancellationToken));
             }
         }
 
@@ -850,10 +851,10 @@ public static partial class OpenIddictClientHandlers
                 Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
                 Debug.Assert(!string.IsNullOrEmpty(context.TokenId), SR.GetResourceString(SR.ID4017));
 
-                var token = await _tokenManager.FindByIdAsync(context.TokenId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0021));
+                var token = await _tokenManager.FindByIdAsync(context.TokenId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0021));
 
-                if (await _tokenManager.HasStatusAsync(token, Statuses.Redeemed))
+                if (await _tokenManager.HasStatusAsync(token, Statuses.Redeemed, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6002, SR.GetResourceString(SR.ID6002), context.TokenId);
 
@@ -875,7 +876,7 @@ public static partial class OpenIddictClientHandlers
                     return;
                 }
 
-                if (!await _tokenManager.HasStatusAsync(token, Statuses.Valid))
+                if (!await _tokenManager.HasStatusAsync(token, Statuses.Valid, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6005, SR.GetResourceString(SR.ID6005), context.TokenId);
 
@@ -919,17 +920,17 @@ public static partial class OpenIddictClientHandlers
                         => context.Registration.EncryptionCredentials.FirstOrDefault(),
 
                     // For other types of tokens, use the global encryption credentials.
-                    _ => context.Options.EncryptionCredentials.First()
+                    _ => context.Options.EncryptionCredentials[0]
                 };
 
                 context.SigningCredentials = context.TokenType switch
                 {
                     // For client assertions, use the signing credentials configured for the client registration.
                     TokenTypeIdentifiers.Private.ClientAssertion
-                        => context.Registration.SigningCredentials.First(),
+                        => context.Registration.SigningCredentials[0],
 
                     // For other types of tokens, use the global signing credentials.
-                    _ => context.Options.SigningCredentials.First()
+                    _ => context.Options.SigningCredentials[0]
                 };
 
                 return ValueTask.CompletedTask;
@@ -979,10 +980,10 @@ public static partial class OpenIddictClientHandlers
 
                 // Tokens produced by the client stack cannot have an application attached.
 
-                var token = await _tokenManager.CreateAsync(descriptor) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0019));
+                var token = await _tokenManager.CreateAsync(descriptor, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0019));
 
-                var identifier = await _tokenManager.GetIdAsync(token);
+                var identifier = await _tokenManager.GetIdAsync(token, context.CancellationToken);
 
                 // Attach the token identifier to the principal so that it can be stored in the token.
                 context.Principal.SetTokenId(identifier);
@@ -1057,9 +1058,9 @@ public static partial class OpenIddictClientHandlers
             {
                 ArgumentNullException.ThrowIfNull(context);
 
-                var claims = context.SecurityTokenDescriptor.Claims is not null ?
-                    new Dictionary<string, object>(context.SecurityTokenDescriptor.Claims, StringComparer.Ordinal) :
-                    new Dictionary<string, object>(StringComparer.Ordinal);
+                var claims = context.SecurityTokenDescriptor.Claims is not null
+                    ? new Dictionary<string, object>(context.SecurityTokenDescriptor.Claims, StringComparer.Ordinal)
+                    : new Dictionary<string, object>(StringComparer.Ordinal);
 
                 // For client assertions, set the public audience claims
                 // using the private audience claims from the security principal.
@@ -1171,11 +1172,11 @@ public static partial class OpenIddictClientHandlers
                     throw new InvalidOperationException(SR.GetResourceString(SR.ID0009));
                 }
 
-                var token = await _tokenManager.FindByIdAsync(identifier) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0021));
+                var token = await _tokenManager.FindByIdAsync(identifier, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0021));
 
                 var descriptor = new OpenIddictTokenDescriptor();
-                await _tokenManager.PopulateAsync(descriptor, token);
+                await _tokenManager.PopulateAsync(descriptor, token, context.CancellationToken);
 
                 // Attach the generated token to the token entry.
                 descriptor.Payload = context.Token;
@@ -1183,10 +1184,10 @@ public static partial class OpenIddictClientHandlers
 
                 if (context.IsReferenceToken)
                 {
-                    descriptor.ReferenceId = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(count: 256 / 8));
+                    descriptor.ReferenceId = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(count: 256 / 8));
                 }
 
-                await _tokenManager.UpdateAsync(token, descriptor);
+                await _tokenManager.UpdateAsync(token, descriptor, context.CancellationToken);
 
                 context.Logger.LogTrace(6014, SR.GetResourceString(SR.ID6014), context.Token, identifier, context.TokenType);
 

@@ -211,7 +211,7 @@ public class OpenIddictAuthorizationManagerTests
             mock => mock.CurrentValue == new OpenIddictCoreOptions { DisableEntityCaching = true });
         var store = new Mock<IOpenIddictAuthorizationStore<CustomAuthorization>>();
 
-        store.Setup(store => store.FindAsync("alice", null, null, null, null, It.IsAny<CancellationToken>()))
+        store.Setup(store => store.FindAsync(It.Is<(string?, string?, string?, string?, ImmutableArray<string>?)>(query => query.Item1 == "alice"), It.IsAny<CancellationToken>()))
              .Returns(authorizations.ToAsyncEnumerable());
 
         store.Setup(store => store.GetSubjectAsync(authorizations[0], It.IsAny<CancellationToken>()))
@@ -223,7 +223,7 @@ public class OpenIddictAuthorizationManagerTests
         var manager = new OpenIddictAuthorizationManager<CustomAuthorization>(cache, logger, options, store.Object);
 
         // Act
-        var results = await manager.FindAsync("alice", null, null, null, null).ToListAsync();
+        var results = await manager.FindAsync(("alice", null, null, null, null)).ToListAsync();
 
         // Assert
         Assert.Single(results);
@@ -240,8 +240,9 @@ public class OpenIddictAuthorizationManagerTests
         var options = Mock.Of<IOptionsMonitor<OpenIddictCoreOptions>>(
             mock => mock.CurrentValue == new OpenIddictCoreOptions { DisableEntityCaching = true });
         var store = new Mock<IOpenIddictAuthorizationStore<CustomAuthorization>>();
+        var scopes = ImmutableArray.Create("openid");
 
-        store.Setup(store => store.FindAsync(null, null, null, null, ImmutableArray.Create("openid"), It.IsAny<CancellationToken>()))
+        store.Setup(store => store.FindAsync(It.Is<(string?, string?, string?, string?, ImmutableArray<string>?)>(query => query.Item5 == scopes), It.IsAny<CancellationToken>()))
              .Returns(authorizations.ToAsyncEnumerable());
 
         store.Setup(store => store.GetSubjectAsync(It.IsAny<CustomAuthorization>(), It.IsAny<CancellationToken>()))
@@ -256,7 +257,7 @@ public class OpenIddictAuthorizationManagerTests
         var manager = new OpenIddictAuthorizationManager<CustomAuthorization>(cache, logger, options, store.Object);
 
         // Act
-        var results = await manager.FindAsync(null, null, null, null, ImmutableArray.Create("openid")).ToListAsync();
+        var results = await manager.FindAsync((null, null, null, null, scopes)).ToListAsync();
 
         // Assert
         Assert.Single(results);
@@ -896,16 +897,9 @@ public class OpenIddictAuthorizationManagerTests
         var store = new Mock<IOpenIddictAuthorizationStore<CustomAuthorization>>();
 
         store.Setup(store => store.FindAsync(
-            It.IsAny<string?>(),
-            It.IsAny<string?>(),
-            It.IsAny<string?>(),
-            It.IsAny<string?>(),
-            It.IsAny<ImmutableArray<string>?>(),
+            It.IsAny<(string?, string?, string?, string?, ImmutableArray<string>?)>(),
             It.IsAny<CancellationToken>()))
-             .Returns((string? subject, string? client, string? status, string? type, ImmutableArray<string>? scopes, CancellationToken cancellationToken) =>
-             {
-                 return Enumerable.Empty<CustomAuthorization>().ToAsyncEnumerable();
-             });
+             .Returns(Enumerable.Empty<CustomAuthorization>().ToAsyncEnumerable());
 
         var manager = new OpenIddictAuthorizationManager<CustomAuthorization>(cache, logger, options, store.Object);
 
@@ -1138,7 +1132,7 @@ public class OpenIddictAuthorizationManagerTests
         var results = await manager.ValidateAsync(authorization).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2116));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2116), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1167,7 +1161,7 @@ public class OpenIddictAuthorizationManagerTests
         var results = await manager.ValidateAsync(authorization).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2117));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2117), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1196,7 +1190,7 @@ public class OpenIddictAuthorizationManagerTests
         var results = await manager.ValidateAsync(authorization).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2038));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2038), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1225,7 +1219,7 @@ public class OpenIddictAuthorizationManagerTests
         var results = await manager.ValidateAsync(authorization).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2039));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2039), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1254,7 +1248,7 @@ public class OpenIddictAuthorizationManagerTests
         var results = await manager.ValidateAsync(authorization).ToListAsync();
 
         // Assert
-        Assert.Contains(results, result => result.ErrorMessage == SR.GetResourceString(SR.ID2042));
+        Assert.Contains(results, result => string.Equals(result.ErrorMessage, SR.GetResourceString(SR.ID2042), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1286,5 +1280,5 @@ public class OpenIddictAuthorizationManagerTests
         Assert.DoesNotContain(results, static result => result != ValidationResult.Success);
     }
 
-    public class CustomAuthorization { }
+    public class CustomAuthorization;
 }

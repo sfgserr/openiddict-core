@@ -31,17 +31,20 @@ public class AuthorizationController : Controller
     private readonly IOpenIddictAuthorizationManager _authorizationManager;
     private readonly OpenIddictClientService _clientService;
     private readonly IOpenIddictScopeManager _scopeManager;
+    private readonly IOpenIddictSessionManager _sessionManager;
 
     public AuthorizationController(
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictAuthorizationManager authorizationManager,
         OpenIddictClientService clientService,
-        IOpenIddictScopeManager scopeManager)
+        IOpenIddictScopeManager scopeManager,
+        IOpenIddictSessionManager sessionManager)
     {
         _applicationManager = applicationManager;
         _authorizationManager = authorizationManager;
         _clientService = clientService;
         _scopeManager = scopeManager;
+        _sessionManager = sessionManager;
     }
 
     [HttpGet, Route("~/connect/authorize")]
@@ -53,8 +56,8 @@ public class AuthorizationController : Controller
         // user agent (e.g as HTML hidden input fields). If only the query string or request form parameters
         // need to be resolved, the Request.QueryString and Request.Form collections must be used instead.
         var context = HttpContext.GetOwinContext();
-        var request = context.GetOpenIddictServerRequest() ??
-            throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
+        var request = context.GetOpenIddictServerRequest()
+            ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
         // Try to retrieve the user principal stored in the authentication cookie and redirect
         // the user agent to the login page (or to an external provider) in the following cases:
@@ -89,7 +92,7 @@ public class AuthorizationController : Controller
                 {
                     context.Authentication.Challenge(
                         authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
-                        properties: new AuthenticationProperties(new Dictionary<string, string?>
+                        properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                         {
                             [OpenIddictServerOwinConstants.Properties.Error] = Errors.InvalidRequest,
                             [OpenIddictServerOwinConstants.Properties.ErrorDescription] =
@@ -99,7 +102,7 @@ public class AuthorizationController : Controller
                     return new EmptyResult();
                 }
 
-                var properties = new AuthenticationProperties(new Dictionary<string, string?>
+                var properties = new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     // Note: when only one client is registered in the client options,
                     // specifying the issuer URI or the provider name is not required.
@@ -124,20 +127,25 @@ public class AuthorizationController : Controller
         }
 
         // Retrieve the profile of the logged in user.
-        var user = await context.GetUserManager<ApplicationUserManager>().FindByIdAsync(result.Identity.GetUserId()) ??
-            throw new InvalidOperationException("The user details cannot be retrieved.");
+        var user = await context.GetUserManager<ApplicationUserManager>().FindByIdAsync(result.Identity.GetUserId());
+        if (user is null)
+        {
+            context.Authentication.Challenge(DefaultAuthenticationTypes.ApplicationCookie);
+            return new EmptyResult();
+        }
 
         // Retrieve the application details from the database.
-        var application = await _applicationManager.FindByClientIdAsync(request.ClientId) ??
-            throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
+        var application = await _applicationManager.FindByClientIdAsync(request.ClientId)
+            ?? throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
 
         // Retrieve the permanent authorizations associated with the user and the calling client application.
         var authorizations = await _authorizationManager.FindAsync(
-            subject: user.Id,
-            client : await _applicationManager.GetIdAsync(application),
-            status : Statuses.Valid,
-            type   : AuthorizationTypes.Permanent,
-            scopes : request.GetScopes()).ToListAsync();
+            query: (
+                Subject       : user.Id,
+                ApplicationId : await _applicationManager.GetIdAsync(application),
+                Status        : Statuses.Valid,
+                Type          : AuthorizationTypes.Permanent,
+                RequiredScopes: request.GetScopes())).ToListAsync();
 
         switch (await _applicationManager.GetConsentTypeAsync(application))
         {
@@ -146,7 +154,7 @@ public class AuthorizationController : Controller
             case ConsentTypes.External when authorizations.Count is 0:
                 context.Authentication.Challenge(
                     authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
                         [OpenIddictServerOwinConstants.Properties.Error] = Errors.ConsentRequired,
                         [OpenIddictServerOwinConstants.Properties.ErrorDescription] =
@@ -181,13 +189,34 @@ public class AuthorizationController : Controller
 
                 // Automatically create a permanent authorization to avoid requiring explicit consent
                 // for future authorization or token requests containing the same scopes.
-                var authorization = authorizations.LastOrDefault();
-                authorization ??= await _authorizationManager.CreateAsync(
-                    identity: identity,
-                    subject : user.Id,
-                    client  : await _applicationManager.GetIdAsync(application),
-                    type    : AuthorizationTypes.Permanent,
-                    scopes  : identity.GetScopes());
+                var authorization = authorizations.LastOrDefault() ?? await _authorizationManager.CreateAsync(new()
+                {
+                    ApplicationId = await _applicationManager.GetIdAsync(application),
+                    Principal = new ClaimsPrincipal(identity),
+                    Scopes = [.. request.GetScopes()],
+                    Subject = user.Id,
+                    Type = AuthorizationTypes.Permanent,
+                });
+
+                // If available, resolve the latest session corresponding to the login identifier stored
+                // in the authentication cookie or create a new one if no valid session can be found.
+                if (result.Identity.HasClaim("login_id"))
+                {
+                    var sessions = await _sessionManager.FindAsync(
+                        query: (
+                            Subject      : user.Id,
+                            LoginId      : result.Identity.GetClaim("login_id"),
+                            ApplicationId: await _applicationManager.GetIdAsync(application),
+                            Status       : Statuses.Valid)).ToListAsync();
+
+                    var session = sessions.LastOrDefault() ?? await _sessionManager.CreateAsync(new()
+                    {
+                        ApplicationId = await _applicationManager.GetIdAsync(application),
+                        Subject = user.Id
+                    });
+
+                    identity.SetSessionId(await _sessionManager.GetIdAsync(session));
+                }
 
                 identity.SetAuthorizationId(await _authorizationManager.GetIdAsync(authorization));
                 identity.SetDestinations(GetDestinations);
@@ -202,7 +231,7 @@ public class AuthorizationController : Controller
             case ConsentTypes.Systematic when request.HasPromptValue(PromptValues.None):
                 context.Authentication.Challenge(
                     authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
                         [OpenIddictServerOwinConstants.Properties.Error] = Errors.ConsentRequired,
                         [OpenIddictServerOwinConstants.Properties.ErrorDescription] =
@@ -230,12 +259,12 @@ public class AuthorizationController : Controller
         // user agent (e.g as HTML hidden input fields). If only the query string or request form parameters
         // need to be resolved, the Request.QueryString and Request.Form collections must be used instead.
         var context = HttpContext.GetOwinContext();
-        var request = context.GetOpenIddictServerRequest() ??
-            throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
+        var request = context.GetOpenIddictServerRequest()
+            ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
         // Retrieve the user principal stored in the authentication cookie.
         var result = await context.Authentication.AuthenticateAsync(DefaultAuthenticationTypes.ApplicationCookie);
-        if (result == null || result.Identity == null)
+        if (result is not { Identity.IsAuthenticated: true })
         {
             context.Authentication.Challenge(DefaultAuthenticationTypes.ApplicationCookie);
 
@@ -243,20 +272,33 @@ public class AuthorizationController : Controller
         }
 
         // Retrieve the profile of the logged in user.
-        var user = await context.GetUserManager<ApplicationUserManager>().FindByIdAsync(result.Identity.GetUserId()) ??
-            throw new InvalidOperationException("The user details cannot be retrieved.");
+        var user = await context.GetUserManager<ApplicationUserManager>().FindByIdAsync(result.Identity.GetUserId());
+        if (user is null)
+        {
+            context.Authentication.Challenge(
+                authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
+                properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [OpenIddictServerOwinConstants.Properties.Error] = Errors.LoginRequired,
+                    [OpenIddictServerOwinConstants.Properties.ErrorDescription] =
+                        "The account associated with the logged in user was removed."
+                }));
+
+            return new EmptyResult();
+        }
 
         // Retrieve the application details from the database.
-        var application = await _applicationManager.FindByClientIdAsync(request.ClientId) ??
-            throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
+        var application = await _applicationManager.FindByClientIdAsync(request.ClientId)
+            ?? throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
 
         // Retrieve the permanent authorizations associated with the user and the calling client application.
         var authorizations = await _authorizationManager.FindAsync(
-            subject: user.Id,
-            client : await _applicationManager.GetIdAsync(application),
-            status : Statuses.Valid,
-            type   : AuthorizationTypes.Permanent,
-            scopes : request.GetScopes()).ToListAsync();
+            query: (
+                Subject       : user.Id,
+                ApplicationId : await _applicationManager.GetIdAsync(application),
+                Status        : Statuses.Valid,
+                Type          : AuthorizationTypes.Permanent,
+                RequiredScopes: request.GetScopes())).ToListAsync();
 
         // Note: the same check is already made in the other action but is repeated
         // here to ensure a malicious user can't abuse this POST-only endpoint and
@@ -265,7 +307,7 @@ public class AuthorizationController : Controller
         {
             context.Authentication.Challenge(
                 authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
-                properties: new AuthenticationProperties(new Dictionary<string, string?>
+                properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     [OpenIddictServerOwinConstants.Properties.Error] = Errors.ConsentRequired,
                     [OpenIddictServerOwinConstants.Properties.ErrorDescription] =
@@ -296,13 +338,34 @@ public class AuthorizationController : Controller
 
         // Automatically create a permanent authorization to avoid requiring explicit consent
         // for future authorization or token requests containing the same scopes.
-        var authorization = authorizations.LastOrDefault();
-        authorization ??= await _authorizationManager.CreateAsync(
-            identity: identity,
-            subject : user.Id,
-            client  : await _applicationManager.GetIdAsync(application),
-            type    : AuthorizationTypes.Permanent,
-            scopes  : identity.GetScopes());
+        var authorization = authorizations.LastOrDefault() ?? await _authorizationManager.CreateAsync(new()
+        {
+            ApplicationId = await _applicationManager.GetIdAsync(application),
+            Principal = new ClaimsPrincipal(identity),
+            Scopes = [.. request.GetScopes()],
+            Subject = user.Id,
+            Type = AuthorizationTypes.Permanent,
+        });
+
+        // If available, resolve the latest session corresponding to the login identifier stored
+        // in the authentication cookie or create a new one if no valid session can be found.
+        if (result.Identity.HasClaim("login_id"))
+        {
+            var sessions = await _sessionManager.FindAsync(
+                query: (
+                    Subject      : user.Id,
+                    LoginId      : result.Identity.GetClaim("login_id"),
+                    ApplicationId: await _applicationManager.GetIdAsync(application),
+                    Status       : Statuses.Valid)).ToListAsync();
+
+            var session = sessions.LastOrDefault() ?? await _sessionManager.CreateAsync(new()
+            {
+                ApplicationId = await _applicationManager.GetIdAsync(application),
+                Subject = user.Id
+            });
+
+            identity.SetSessionId(await _sessionManager.GetIdAsync(session));
+        }
 
         identity.SetAuthorizationId(await _authorizationManager.GetIdAsync(authorization));
         identity.SetDestinations(GetDestinations);
@@ -348,8 +411,8 @@ public class AuthorizationController : Controller
     public async Task<ActionResult> Exchange()
     {
         var context = HttpContext.GetOwinContext();
-        var request = context.GetOpenIddictServerRequest() ??
-            throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
+        var request = context.GetOpenIddictServerRequest()
+            ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
         if (request.IsAuthorizationCodeGrantType() || request.IsRefreshTokenGrantType())
         {
@@ -358,11 +421,11 @@ public class AuthorizationController : Controller
 
             // Retrieve the user profile corresponding to the authorization code/refresh token.
             var user = await context.GetUserManager<ApplicationUserManager>().FindByIdAsync(result.Identity.GetClaim(Claims.Subject));
-            if (user == null)
+            if (user is null)
             {
                 context.Authentication.Challenge(
                     authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
                         [OpenIddictServerOwinConstants.Properties.Error] = Errors.InvalidGrant,
                         [OpenIddictServerOwinConstants.Properties.ErrorDescription] = "The token is no longer valid."
@@ -376,7 +439,7 @@ public class AuthorizationController : Controller
             {
                 context.Authentication.Challenge(
                     authenticationTypes: OpenIddictServerOwinDefaults.AuthenticationType,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
                         [OpenIddictServerOwinConstants.Properties.Error] = Errors.InvalidGrant,
                         [OpenIddictServerOwinConstants.Properties.ErrorDescription] = "The user is no longer allowed to sign in."

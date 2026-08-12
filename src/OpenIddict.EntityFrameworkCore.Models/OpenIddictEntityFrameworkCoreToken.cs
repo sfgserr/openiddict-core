@@ -5,29 +5,29 @@
  */
 
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 
 namespace OpenIddict.EntityFrameworkCore.Models;
 
 /// <summary>
 /// Represents an OpenIddict token.
 /// </summary>
-public class OpenIddictEntityFrameworkCoreToken : OpenIddictEntityFrameworkCoreToken<string, OpenIddictEntityFrameworkCoreApplication, OpenIddictEntityFrameworkCoreAuthorization>
+public class OpenIddictEntityFrameworkCoreToken :
+    OpenIddictEntityFrameworkCoreToken<string,
+                                       OpenIddictEntityFrameworkCoreApplication,
+                                       OpenIddictEntityFrameworkCoreAuthorization>
 {
-    public OpenIddictEntityFrameworkCoreToken()
-    {
-        // Generate a new string identifier.
-        Id = Guid.NewGuid().ToString();
-    }
+    public OpenIddictEntityFrameworkCoreToken() => Id = Guid.NewGuid().ToString();
 }
 
 /// <summary>
 /// Represents an OpenIddict token.
 /// </summary>
-public class OpenIddictEntityFrameworkCoreToken<TKey> : OpenIddictEntityFrameworkCoreToken<TKey, OpenIddictEntityFrameworkCoreApplication<TKey>, OpenIddictEntityFrameworkCoreAuthorization<TKey>>
-    where TKey : notnull, IEquatable<TKey>
-{
-}
+public class OpenIddictEntityFrameworkCoreToken<TKey> :
+    OpenIddictEntityFrameworkCoreToken<TKey,
+                                       OpenIddictEntityFrameworkCoreApplication<TKey>,
+                                       OpenIddictEntityFrameworkCoreAuthorization<TKey>>
+    where TKey : notnull, IEquatable<TKey>;
 
 /// <summary>
 /// Represents an OpenIddict token.
@@ -39,74 +39,75 @@ public class OpenIddictEntityFrameworkCoreToken<TKey, TApplication, TAuthorizati
     where TAuthorization : class
 {
     /// <summary>
-    /// Gets or sets the application associated with the current token.
+    /// Gets or sets the application associated with the token.
     /// </summary>
     public virtual TApplication? Application { get; set; }
 
     /// <summary>
-    /// Gets or sets the authorization associated with the current token.
+    /// Gets or sets the authorization associated with the token.
     /// </summary>
     public virtual TAuthorization? Authorization { get; set; }
 
     /// <summary>
-    /// Gets or sets the concurrency token.
+    /// Gets or sets the concurrency token of the token.
     /// </summary>
     public virtual string? ConcurrencyToken { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
-    /// Gets or sets the UTC creation date of the current token.
+    /// Gets or sets the UTC creation date of the token.
     /// </summary>
     public virtual DateTime? CreationDate { get; set; }
 
     /// <summary>
-    /// Gets or sets the UTC expiration date of the current token.
+    /// Gets or sets the UTC expiration date of the token.
     /// </summary>
     public virtual DateTime? ExpirationDate { get; set; }
 
     /// <summary>
-    /// Gets or sets the unique identifier associated with the current token.
+    /// Gets or sets the unique identifier of the token.
     /// </summary>
     public virtual TKey? Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the payload of the current token, if applicable.
-    /// Note: this property is only used for reference tokens
-    /// and may be encrypted for security reasons.
+    /// Gets or sets the payload of the token.
     /// </summary>
+    /// <remarks>
+    /// Note: this property is only used for reference tokens
+    /// and may be hashed or encrypted for security reasons.
+    /// </remarks>
     public virtual string? Payload { get; set; }
 
     /// <summary>
-    /// Gets or sets the additional properties serialized as a JSON object,
-    /// or <see langword="null"/> if no bag was associated with the current token.
+    /// Gets or sets the additional properties of the token.
     /// </summary>
-    [StringSyntax(StringSyntaxAttribute.Json)]
-    public virtual string? Properties { get; set; }
+    public virtual IDictionary<string, JsonElement>? Properties { get; set; }
 
     /// <summary>
-    /// Gets or sets the UTC redemption date of the current token.
+    /// Gets or sets the UTC redemption date of the token.
     /// </summary>
     public virtual DateTime? RedemptionDate { get; set; }
 
     /// <summary>
-    /// Gets or sets the reference identifier associated
-    /// with the current token, if applicable.
+    /// Gets or sets the reference identifier of the token.
+    /// </summary>
+    /// <remarks>
     /// Note: this property is only used for reference tokens
     /// and may be hashed or encrypted for security reasons.
-    /// </summary>
+    /// </remarks>
     public virtual string? ReferenceId { get; set; }
 
     /// <summary>
-    /// Gets or sets the status of the current token.
+    /// Gets or sets the status of the token.
     /// </summary>
     public virtual string? Status { get; set; }
 
     /// <summary>
-    /// Gets or sets the subject associated with the current token.
+    /// Gets or sets the subject of the token.
     /// </summary>
     public virtual string? Subject { get; set; }
 
     /// <summary>
-    /// Gets or sets the type of the current token.
+    /// Gets or sets the type of the token.
     /// </summary>
     public virtual string? Type { get; set; }
 }

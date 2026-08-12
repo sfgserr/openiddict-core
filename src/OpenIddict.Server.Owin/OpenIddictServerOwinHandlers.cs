@@ -83,8 +83,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // OpenIddict supports both absolute and relative URIs for all its endpoints, but only absolute
             // URIs can be properly canonicalized by the BCL System.Uri class (e.g './path/../' is normalized
@@ -134,8 +134,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // Don't require that transport security be used if the request is not handled by OpenIddict.
             if (context.EndpointType is not OpenIddictServerEndpointType.Unknown && !request.IsSecure)
@@ -176,8 +176,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // Don't require that the request host be present if the request is not handled by OpenIddict.
             if (context.EndpointType is not OpenIddictServerEndpointType.Unknown &&
@@ -485,8 +485,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             if (string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
             {
@@ -536,8 +536,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             if (string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
             {
@@ -619,8 +619,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             if (string.Equals(request.Method, "POST", StringComparison.OrdinalIgnoreCase))
             {
@@ -697,8 +697,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // Reject requests that use client_secret_post if support was explicitly disabled in the options.
             if (!string.IsNullOrEmpty(context.Transaction.Request.ClientSecret) &&
@@ -762,22 +762,24 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // If a client certificate was used during the TLS handshake, attach it to the context.
-            if (request.IsSecure && await GetClientCertificateAsync(request.Context) is X509Certificate2 certificate)
+            if (request.IsSecure && await GetClientCertificateAsync(request.Context,
+                context.CancellationToken) is X509Certificate2 certificate)
             {
                 context.Transaction.RemoteCertificate = certificate;
             }
 
-            static async ValueTask<X509Certificate2?> GetClientCertificateAsync(IOwinContext context)
+            static async ValueTask<X509Certificate2?> GetClientCertificateAsync(
+                IOwinContext context, CancellationToken cancellationToken)
             {
                 // If a loading function was provided by the OWIN host, always invoke it before trying
                 // to resolve the certificate to ensure it is present in the environment dictionary.
                 if (context.Get<Func<Task>>("ssl.LoadClientCertAsync") is Func<Task> loader)
                 {
-                    await loader();
+                    await loader().WaitAsync(cancellationToken);
                 }
 
                 return context.Get<X509Certificate>("ssl.ClientCertificate") is X509Certificate certificate
@@ -814,8 +816,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             var header = request.Headers[Headers.Authorization];
             if (string.IsNullOrEmpty(header) || !header.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
@@ -843,7 +845,7 @@ public static partial class OpenIddictServerOwinHandlers
                 var value = header["Basic ".Length..].Trim();
                 var data = Encoding.ASCII.GetString(Convert.FromBase64String(value));
 
-                var index = data.IndexOf(':');
+                var index = data.IndexOf(':', StringComparison.Ordinal);
                 if (index is < 0)
                 {
                     context.Reject(
@@ -878,7 +880,7 @@ public static partial class OpenIddictServerOwinHandlers
                     return null;
                 }
 
-                return Uri.UnescapeDataString(data.Replace("+", "%20"));
+                return Uri.UnescapeDataString(data.Replace("+", "%20", StringComparison.Ordinal));
             }
         }
     }
@@ -910,8 +912,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetOwinRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var request = context.Transaction.GetOwinRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             var header = request.Headers[Headers.Authorization];
             if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
@@ -1002,8 +1004,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             response.StatusCode = (context.EndpointType, context.Transaction.Response.Error) switch
             {
@@ -1063,8 +1065,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // OWIN authentication middleware configured to use active authentication (which is the default mode)
             // are known to aggressively intercept 401 responses even if the request is already considered fully
@@ -1113,8 +1115,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // Similarly to the automatic authentication mode used by OWIN authentication middleware,
             // the ASP.NET FormsAuthentication module aggressively intercepts 401 responses even if
@@ -1177,8 +1179,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // Prevent the response from being cached.
             response.Headers[Headers.CacheControl] = "no-store";
@@ -1220,8 +1222,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             if (string.IsNullOrEmpty(context.Transaction.Response.Error))
             {
@@ -1291,7 +1293,7 @@ public static partial class OpenIddictServerOwinHandlers
                 builder.Append(parameter.Key);
                 builder.Append('=');
                 builder.Append('"');
-                builder.Append(parameter.Value.Replace("\"", "\\\""));
+                builder.Append(parameter.Value.Replace("\"", "\\\"", StringComparison.Ordinal));
                 builder.Append('"');
                 builder.Append(',');
             }
@@ -1332,8 +1334,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             // If the response doesn't contain a WWW-Authenticate header, don't return an empty response.
             if (!response.Headers.ContainsKey(Headers.WwwAuthenticate))
@@ -1379,8 +1381,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             context.Logger.LogInformation(6142, SR.GetResourceString(SR.ID6142), context.Transaction.Response);
 
@@ -1474,8 +1476,8 @@ public static partial class OpenIddictServerOwinHandlers
 
             // This handler only applies to OWIN requests. If The OWIN request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetOwinRequest()?.Context.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
+            var response = context.Transaction.GetOwinRequest()?.Context.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
 
             if (string.IsNullOrEmpty(context.Transaction.Response.Error))
             {

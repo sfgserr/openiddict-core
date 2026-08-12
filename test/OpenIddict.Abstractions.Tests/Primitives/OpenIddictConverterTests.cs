@@ -85,7 +85,7 @@ public class OpenIddictConverterTests
             return converter.Read(ref reader, type, options: null!);
         });
 
-        Assert.StartsWith(SR.GetResourceString(SR.ID0176), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0176), exception.Message, StringComparison.Ordinal);
         Assert.Equal("typeToConvert", exception.ParamName);
     }
 
@@ -150,8 +150,8 @@ public class OpenIddictConverterTests
         Assert.NotNull(message.GetParameter("array"));
         Assert.NotNull(message.GetParameter("object"));
         Assert.Empty(((string?) message.GetParameter("string"))!);
-        Assert.True(((JsonElement?) message.GetParameter("array")).HasValue);
-        Assert.True(((JsonElement?) message.GetParameter("object")).HasValue);
+        Assert.True((JsonElement?) message.GetParameter("array") is not null);
+        Assert.True((JsonElement?) message.GetParameter("object") is not null);
         Assert.NotNull((JsonNode?) message.GetParameter("array"));
         Assert.NotNull((JsonNode?) message.GetParameter("object"));
     }

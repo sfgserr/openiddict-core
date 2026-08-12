@@ -16,7 +16,7 @@ namespace OpenIddict.Core;
 /// <summary>
 /// Provides methods allowing to cache scopes after retrieving them from the store.
 /// </summary>
-/// <typeparam name="TScope">The type of the Scope entity.</typeparam>
+/// <typeparam name="TScope">The type of the scope entity.</typeparam>
 public sealed class OpenIddictScopeCache<TScope> : IOpenIddictScopeCache<TScope>, IDisposable where TScope : class
 {
     private readonly MemoryCache _cache;
@@ -247,8 +247,8 @@ public sealed class OpenIddictScopeCache<TScope> : IOpenIddictScopeCache<TScope>
 
         if (scope is not null)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(scope, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(scope, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = 1L;
@@ -270,8 +270,8 @@ public sealed class OpenIddictScopeCache<TScope> : IOpenIddictScopeCache<TScope>
 
         foreach (var scope in scopes)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(scope, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(scope, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = scopes.Length;
@@ -285,7 +285,7 @@ public sealed class OpenIddictScopeCache<TScope> : IOpenIddictScopeCache<TScope>
     /// <param name="scope">The scope associated with the expiration signal.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns an expiration signal for the specified scope.
     /// </returns>
     private async ValueTask<IChangeToken> CreateExpirationSignalAsync(TScope scope, CancellationToken cancellationToken)

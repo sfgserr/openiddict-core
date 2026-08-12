@@ -151,8 +151,8 @@ public class OpenIddictClientService
         var options = _provider.GetRequiredService<IOptionsMonitor<OpenIddictClientOptions>>();
 
         return new(options.CurrentValue.Registrations.Find(registration => string.Equals(
-            registration.RegistrationId, identifier, StringComparison.Ordinal)) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0410)));
+            registration.RegistrationId, identifier, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0410)));
     }
 
     /// <summary>
@@ -181,8 +181,8 @@ public class OpenIddictClientService
 
         return await registration.ConfigurationManager
             .GetConfigurationAsync(cancellationToken)
-            .WaitAsync(cancellationToken) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+            .WaitAsync(cancellationToken)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
     }
 
     /// <summary>
@@ -211,8 +211,8 @@ public class OpenIddictClientService
 
         return await registration.ConfigurationManager
             .GetConfigurationAsync(cancellationToken)
-            .WaitAsync(cancellationToken) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+            .WaitAsync(cancellationToken)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
     }
 
     /// <summary>
@@ -238,8 +238,8 @@ public class OpenIddictClientService
 
         return await registration.ConfigurationManager
             .GetConfigurationAsync(cancellationToken)
-            .WaitAsync(cancellationToken) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+            .WaitAsync(cancellationToken)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
     }
 
     /// <summary>
@@ -266,11 +266,10 @@ public class OpenIddictClientService
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
 
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessAuthenticationContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             Nonce = request.Nonce,
             Request = new(),
             TokenEndpointClientCertificate = request.TokenBindingCertificate,
@@ -295,30 +294,27 @@ public class OpenIddictClientService
                 context.Error, context.ErrorDescription, context.ErrorUri);
         }
 
-        else
-        {
-            Debug.Assert(context.Registration.Issuer is { IsAbsoluteUri: true }, SR.GetResourceString(SR.ID4013));
+        Debug.Assert(context.Registration.Issuer is { IsAbsoluteUri: true }, SR.GetResourceString(SR.ID4013));
 
-            return new()
-            {
-                AuthorizationCode = context.AuthorizationCode,
-                AuthorizationResponse = context.Request is not null ? new(context.Request.GetParameters()) : new(),
-                BackchannelAccessToken = context.BackchannelAccessToken,
-                BackchannelAccessTokenExpirationDate = context.BackchannelAccessTokenExpirationDate,
-                BackchannelIdentityToken = context.BackchannelIdentityToken,
-                BackchannelIdentityTokenPrincipal = context.BackchannelIdentityTokenPrincipal,
-                FrontchannelAccessToken = context.FrontchannelAccessToken,
-                FrontchannelAccessTokenExpirationDate = context.FrontchannelAccessTokenExpirationDate,
-                FrontchannelIdentityToken = context.FrontchannelIdentityToken,
-                FrontchannelIdentityTokenPrincipal = context.FrontchannelIdentityTokenPrincipal,
-                Principal = context.MergedPrincipal,
-                Properties = context.Properties,
-                RefreshToken = context.RefreshToken,
-                StateTokenPrincipal = context.StateTokenPrincipal,
-                TokenResponse = context.TokenResponse ?? new(),
-                UserInfoTokenPrincipal = context.UserInfoTokenPrincipal
-            };
-        }
+        return new()
+        {
+            AuthorizationCode = context.AuthorizationCode,
+            AuthorizationResponse = context.Request is not null ? new(context.Request.GetParameters()) : new(),
+            BackchannelAccessToken = context.BackchannelAccessToken,
+            BackchannelAccessTokenExpirationDate = context.BackchannelAccessTokenExpirationDate,
+            BackchannelIdentityToken = context.BackchannelIdentityToken,
+            BackchannelIdentityTokenPrincipal = context.BackchannelIdentityTokenPrincipal,
+            FrontchannelAccessToken = context.FrontchannelAccessToken,
+            FrontchannelAccessTokenExpirationDate = context.FrontchannelAccessTokenExpirationDate,
+            FrontchannelIdentityToken = context.FrontchannelIdentityToken,
+            FrontchannelIdentityTokenPrincipal = context.FrontchannelIdentityTokenPrincipal,
+            Principal = context.MergedPrincipal,
+            Properties = context.Properties,
+            RefreshToken = context.RefreshToken,
+            StateTokenPrincipal = context.StateTokenPrincipal,
+            TokenResponse = context.TokenResponse ?? new(),
+            UserInfoTokenPrincipal = context.UserInfoTokenPrincipal
+        };
     }
 
     /// <summary>
@@ -340,11 +336,10 @@ public class OpenIddictClientService
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
 
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessChallengeContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             CodeChallengeMethod = request.CodeChallengeMethod,
             GrantType = request.GrantType,
             IdentityTokenHint = request.IdentityTokenHint,
@@ -422,11 +417,10 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessAuthenticationContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             GrantType = GrantTypes.ClientCredentials,
             Issuer = request.Issuer,
             ProviderName = request.ProviderName,
@@ -513,11 +507,10 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessAuthenticationContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             DisableUserInfoRetrieval = request.DisableUserInfo,
             DisableUserInfoValidation = request.DisableUserInfo,
             GrantType = request.GrantType,
@@ -606,12 +599,12 @@ public class OpenIddictClientService
 
                 var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
                 var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
+                var options = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<OpenIddictClientOptions>>();
 
-                var transaction = await factory.CreateTransactionAsync();
+                var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
                 var context = new ProcessAuthenticationContext(transaction)
                 {
-                    CancellationToken = source.Token,
                     DeviceCode = request.DeviceCode,
                     DisableUserInfoRetrieval = request.DisableUserInfo,
                     DisableUserInfoValidation = request.DisableUserInfo,
@@ -657,31 +650,32 @@ public class OpenIddictClientService
                         context.Error, context.ErrorDescription, context.ErrorUri);
                 }
 
-                else
-                {
-                    Debug.Assert(context.Registration.Issuer is { IsAbsoluteUri: true }, SR.GetResourceString(SR.ID4013));
+                Debug.Assert(context.Registration.Issuer is { IsAbsoluteUri: true }, SR.GetResourceString(SR.ID4013));
 
-                    return new()
-                    {
-                        AccessToken = context.BackchannelAccessToken!,
-                        AccessTokenExpirationDate = context.BackchannelAccessTokenExpirationDate,
-                        IdentityToken = context.BackchannelIdentityToken,
-                        IdentityTokenPrincipal = context.BackchannelIdentityTokenPrincipal,
-                        Principal = context.MergedPrincipal,
-                        Properties = context.Properties,
-                        RefreshToken = context.RefreshToken,
-                        TokenResponse = context.TokenResponse ?? new(),
-                        UserInfoToken = context.UserInfoToken,
-                        UserInfoTokenPrincipal = context.UserInfoTokenPrincipal
-                    };
-                }
+                return new()
+                {
+                    AccessToken = context.BackchannelAccessToken!,
+                    AccessTokenExpirationDate = context.BackchannelAccessTokenExpirationDate,
+                    IdentityToken = context.BackchannelIdentityToken,
+                    IdentityTokenPrincipal = context.BackchannelIdentityTokenPrincipal,
+                    Principal = context.MergedPrincipal,
+                    Properties = context.Properties,
+                    RefreshToken = context.RefreshToken,
+                    TokenResponse = context.TokenResponse ?? new(),
+                    UserInfoToken = context.UserInfoToken,
+                    UserInfoTokenPrincipal = context.UserInfoTokenPrincipal
+                };
             }
 
             catch (ProtocolException exception) when (exception.Error is Errors.AuthorizationPending)
             {
                 // Default to a standard 5-second interval if no explicit value was configured.
                 // See https://www.rfc-editor.org/rfc/rfc8628#section-3.5 for more information.
+#if NET
+                await Task.Delay(interval, TimeProvider.System, source.Token);
+#else
                 await Task.Delay(interval, source.Token);
+#endif
             }
 
             catch (ProtocolException exception) when (exception.Error is Errors.SlowDown)
@@ -690,7 +684,11 @@ public class OpenIddictClientService
                 // slow down the token redeeming process by increasing the interval.
                 //
                 // See https://www.rfc-editor.org/rfc/rfc8628#section-3.5 for more information.
+#if NET
+                await Task.Delay(interval += TimeSpan.FromSeconds(5), TimeProvider.System, source.Token);
+#else
                 await Task.Delay(interval += TimeSpan.FromSeconds(5), source.Token);
+#endif
             }
         }
     }
@@ -714,11 +712,10 @@ public class OpenIddictClientService
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
 
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessChallengeContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             DeviceAuthorizationRequest = request.AdditionalDeviceAuthorizationRequestParameters
                 is Dictionary<string, OpenIddictParameter> parameters ? new(parameters) : new(),
             GrantType = GrantTypes.DeviceCode,
@@ -793,11 +790,10 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessAuthenticationContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             DisableUserInfoRetrieval = request.DisableUserInfo,
             DisableUserInfoValidation = request.DisableUserInfo,
             GrantType = GrantTypes.Password,
@@ -881,13 +877,12 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessAuthenticationContext(transaction)
         {
             ActorToken = request.ActorToken,
             ActorTokenType = request.ActorTokenType,
-            CancellationToken = request.CancellationToken,
             DisableUserInfoRetrieval = request.DisableUserInfo,
             DisableUserInfoValidation = request.DisableUserInfo,
             GrantType = GrantTypes.TokenExchange,
@@ -969,11 +964,10 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessAuthenticationContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             DisableUserInfoRetrieval = request.DisableUserInfo,
             DisableUserInfoValidation = request.DisableUserInfo,
             GrantType = GrantTypes.RefreshToken,
@@ -1055,11 +1049,10 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessIntrospectionContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             IntrospectionRequest = request.AdditionalIntrospectionRequestParameters
                 is Dictionary<string, OpenIddictParameter> parameters ? new(parameters) : new(),
             Issuer = request.Issuer,
@@ -1115,11 +1108,10 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessRevocationContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             Issuer = request.Issuer,
             ProviderName = request.ProviderName,
             RegistrationId = request.RegistrationId,
@@ -1183,21 +1175,20 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         var request = new OpenIddictRequest();
         request = await PrepareConfigurationRequestAsync();
         request = await ApplyConfigurationRequestAsync();
         var response = await ExtractConfigurationResponseAsync();
 
-        return await HandleConfigurationResponseAsync() ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0145));
+        return await HandleConfigurationResponseAsync()
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0145));
 
         async ValueTask<OpenIddictRequest> PrepareConfigurationRequestAsync()
         {
             var context = new PrepareConfigurationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request
@@ -1219,7 +1210,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyConfigurationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request
@@ -1243,7 +1233,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractConfigurationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request
@@ -1269,7 +1258,6 @@ public class OpenIddictClientService
         {
             var context = new HandleConfigurationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request,
@@ -1308,11 +1296,10 @@ public class OpenIddictClientService
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
 
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(request.CancellationToken);
 
         var context = new ProcessSignOutContext(transaction)
         {
-            CancellationToken = request.CancellationToken,
             IdentityTokenHint = request.IdentityTokenHint,
             Issuer = request.Issuer,
             LoginHint = request.LoginHint,
@@ -1379,7 +1366,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         var request = new OpenIddictRequest();
         request = await PrepareJsonWebKeySetRequestAsync();
@@ -1387,14 +1374,13 @@ public class OpenIddictClientService
 
         var response = await ExtractJsonWebKeySetResponseAsync();
 
-        return await HandleJsonWebKeySetResponseAsync() ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0147));
+        return await HandleJsonWebKeySetResponseAsync()
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0147));
 
         async ValueTask<OpenIddictRequest> PrepareJsonWebKeySetRequestAsync()
         {
             var context = new PrepareJsonWebKeySetRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request
@@ -1416,7 +1402,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyJsonWebKeySetRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request
@@ -1440,7 +1425,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractJsonWebKeySetResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request
@@ -1466,7 +1450,6 @@ public class OpenIddictClientService
         {
             var context = new HandleJsonWebKeySetResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Registration = registration,
                 Request = request,
@@ -1521,7 +1504,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         request = await PrepareDeviceAuthorizationRequestAsync();
         request = await ApplyDeviceAuthorizationRequestAsync();
@@ -1534,7 +1517,6 @@ public class OpenIddictClientService
         {
             var context = new PrepareDeviceAuthorizationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 ClientAuthenticationMethod = method,
                 Configuration = configuration,
                 RemoteUri = uri,
@@ -1559,7 +1541,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyDeviceAuthorizationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Configuration = configuration,
                 Registration = registration,
@@ -1584,7 +1565,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractDeviceAuthorizationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Configuration = configuration,
                 Registration = registration,
@@ -1611,7 +1591,6 @@ public class OpenIddictClientService
         {
             var context = new HandleDeviceAuthorizationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Configuration = configuration,
                 Registration = registration,
@@ -1666,7 +1645,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         request = await PrepareIntrospectionRequestAsync();
         request = await ApplyIntrospectionRequestAsync();
@@ -1679,7 +1658,6 @@ public class OpenIddictClientService
         {
             var context = new PrepareIntrospectionRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 ClientAuthenticationMethod = method,
                 Configuration = configuration,
                 Registration = registration,
@@ -1704,7 +1682,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyIntrospectionRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -1729,7 +1706,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractIntrospectionResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -1756,7 +1732,6 @@ public class OpenIddictClientService
         {
             var context = new HandleIntrospectionResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -1814,7 +1789,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         request = await PreparePushedAuthorizationRequestAsync();
         request = await ApplyPushedAuthorizationRequestAsync();
@@ -1827,7 +1802,6 @@ public class OpenIddictClientService
         {
             var context = new PreparePushedAuthorizationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 ClientAuthenticationMethod = method,
                 RemoteUri = uri,
                 Configuration = configuration,
@@ -1852,7 +1826,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyPushedAuthorizationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Configuration = configuration,
                 Registration = registration,
@@ -1877,7 +1850,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractPushedAuthorizationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Configuration = configuration,
                 Registration = registration,
@@ -1904,7 +1876,6 @@ public class OpenIddictClientService
         {
             var context = new HandlePushedAuthorizationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 RemoteUri = uri,
                 Configuration = configuration,
                 Registration = registration,
@@ -1959,7 +1930,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         request = await PrepareRevocationRequestAsync();
         request = await ApplyRevocationRequestAsync();
@@ -1972,7 +1943,6 @@ public class OpenIddictClientService
         {
             var context = new PrepareRevocationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 ClientAuthenticationMethod = method,
                 Configuration = configuration,
                 Registration = registration,
@@ -1997,7 +1967,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyRevocationRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -2022,7 +1991,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractRevocationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -2049,7 +2017,6 @@ public class OpenIddictClientService
         {
             var context = new HandleRevocationResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -2105,7 +2072,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         request = await PrepareTokenRequestAsync();
         request = await ApplyTokenRequestAsync();
@@ -2118,7 +2085,6 @@ public class OpenIddictClientService
         {
             var context = new PrepareTokenRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 ClientAuthenticationMethod = method,
                 Configuration = configuration,
                 Registration = registration,
@@ -2143,7 +2109,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyTokenRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -2169,7 +2134,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractTokenResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -2197,7 +2161,6 @@ public class OpenIddictClientService
         {
             var context = new HandleTokenResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,
@@ -2252,7 +2215,7 @@ public class OpenIddictClientService
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IOpenIddictClientDispatcher>();
         var factory = scope.ServiceProvider.GetRequiredService<IOpenIddictClientFactory>();
-        var transaction = await factory.CreateTransactionAsync();
+        var transaction = await factory.CreateTransactionAsync(cancellationToken);
 
         request = await PrepareUserInfoRequestAsync();
         request = await ApplyUserInfoRequestAsync();
@@ -2265,7 +2228,6 @@ public class OpenIddictClientService
         {
             var context = new PrepareUserInfoRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 RemoteUri = uri,
                 Registration = registration,
@@ -2289,7 +2251,6 @@ public class OpenIddictClientService
         {
             var context = new ApplyUserInfoRequestContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 RemoteUri = uri,
                 Registration = registration,
@@ -2314,7 +2275,6 @@ public class OpenIddictClientService
         {
             var context = new ExtractUserInfoResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 RemoteUri = uri,
                 Registration = registration,
@@ -2341,7 +2301,6 @@ public class OpenIddictClientService
         {
             var context = new HandleUserInfoResponseContext(transaction)
             {
-                CancellationToken = cancellationToken,
                 Configuration = configuration,
                 Registration = registration,
                 RemoteUri = uri,

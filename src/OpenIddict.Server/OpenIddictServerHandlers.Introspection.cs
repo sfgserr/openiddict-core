@@ -91,13 +91,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -154,13 +154,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -208,13 +208,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -229,7 +229,7 @@ public static partial class OpenIddictServerHandlers
                     [Claims.Issuer] = notification.Issuer?.AbsoluteUri,
                     [Claims.Username] = notification.Username,
                     [Claims.Subject] = notification.Subject,
-                    [Claims.Scope] = string.Join(" ", notification.Scopes),
+                    [Claims.Scope] = string.Join(Separators.Space[0], notification.Scopes),
                     [Claims.JwtId] = notification.TokenId,
                     [Claims.TokenType] = notification.TokenType,
                     [Claims.TokenUsage] = notification.TokenUsage,
@@ -313,7 +313,7 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
@@ -474,13 +474,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -528,11 +528,11 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 // Reject the request if the application is not allowed to use the introspection endpoint.
-                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Endpoints.Introspection))
+                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Endpoints.Introspection, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6103, SR.GetResourceString(SR.ID6103), context.ClientId);
 
@@ -674,8 +674,8 @@ public static partial class OpenIddictServerHandlers
                 ArgumentNullException.ThrowIfNull(context);
 
                 var notification = context.Transaction.GetProperty<ValidateIntrospectionRequestContext>(
-                    typeof(ValidateIntrospectionRequestContext).FullName!) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0007));
+                    typeof(ValidateIntrospectionRequestContext).FullName!)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0007));
 
                 Debug.Assert(notification.GenericTokenPrincipal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
@@ -735,8 +735,8 @@ public static partial class OpenIddictServerHandlers
                     // For access tokens that contain a confirmation claim, return it to the caller so
                     // that resource servers can verify the proof-of-possession when the token is used.
                     TokenTypeIdentifiers.AccessToken when context.GenericTokenPrincipal.GetClaim(
-                        Claims.Confirmation) is { Length: > 0 } value => JsonObject.Parse(value) as JsonObject ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID2199)),
+                        Claims.Confirmation) is { Length: > 0 } value => JsonObject.Parse(value) as JsonObject
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID2199)),
 
                     _ => null
                 };
@@ -746,8 +746,8 @@ public static partial class OpenIddictServerHandlers
 
                 // Infer the audiences/client_id from the claims stored in the security principal.
                 context.Audiences.UnionWith(context.GenericTokenPrincipal.GetAudiences());
-                context.ClientId = context.GenericTokenPrincipal.GetClaim(Claims.ClientId) ??
-                                   context.GenericTokenPrincipal.FindFirst(Claims.Private.Presenter)?.Value;
+                context.ClientId = context.GenericTokenPrincipal.GetClaim(Claims.ClientId)
+                                   ?? context.GenericTokenPrincipal.FindFirst(Claims.Private.Presenter)?.Value;
 
                 context.TokenType = context.GenericTokenPrincipal.GetTokenType() switch
                 {
@@ -816,11 +816,11 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                var application = await _applicationManager.FindByClientIdAsync(context.Request.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.Request.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 // Public clients are not allowed to access sensitive claims as authentication cannot be enforced.
-                if (await _applicationManager.HasClientTypeAsync(application, ClientTypes.Public))
+                if (await _applicationManager.HasClientTypeAsync(application, ClientTypes.Public, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6107, SR.GetResourceString(SR.ID6107), context.Request.ClientId);
 
@@ -830,7 +830,7 @@ public static partial class OpenIddictServerHandlers
                 context.Username = context.GenericTokenPrincipal.Identity.Name;
                 context.Scopes.UnionWith(context.GenericTokenPrincipal.GetScopes());
 
-                foreach (var group in context.GenericTokenPrincipal.Claims.GroupBy(claim => claim.Type))
+                foreach (var group in context.GenericTokenPrincipal.Claims.GroupBy(claim => claim.Type, StringComparer.Ordinal))
                 {
                     // Exclude standard claims, that are already handled via strongly-typed properties.
                     // Make sure to always update this list when adding new built-in claim properties.

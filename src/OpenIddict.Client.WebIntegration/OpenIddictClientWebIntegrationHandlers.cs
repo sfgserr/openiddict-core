@@ -161,13 +161,11 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                 //
                 // See https://shopify.dev/docs/apps/auth/oauth/getting-started#remove-the-hmac-parameter-from-the-query-string
                 // for more information.
-                foreach (var (name, value) in
-                    from parameter in OpenIddictHelpers.ParseQuery(context.RequestUri!.Query)
-                    where !string.IsNullOrEmpty(parameter.Key)
-                    where !string.Equals(parameter.Key, "hmac", StringComparison.Ordinal)
-                    orderby parameter.Key ascending
-                    from value in parameter.Value
-                    select (Name: parameter.Key, Value: value))
+                foreach (var (name, value) in OpenIddictHelpers.ParseQuery(context.RequestUri!.Query)
+                    .Where(static parameter => !string.IsNullOrEmpty(parameter.Key))
+                    .Where(static parameter => !string.Equals(parameter.Key, "hmac", StringComparison.Ordinal))
+                    .OrderBy(static parameter => parameter.Key, StringComparer.Ordinal)
+                    .SelectMany(static parameter => parameter.Value, static (parameter, value) => (Name: parameter.Key, Value: value)))
                 {
                     if (builder.Length is > 0)
                     {
@@ -1187,7 +1185,7 @@ public static partial class OpenIddictClientWebIntegrationHandlers
             {
                 var settings = context.Registration.GetDailymotionSettings();
 
-                context.UserInfoRequest["fields"] = string.Join(",", settings.UserFields);
+                context.UserInfoRequest["fields"] = string.Join(Separators.Comma[0], settings.UserFields);
             }
 
             // Disqus requires sending the client identifier (called "public
@@ -1204,7 +1202,7 @@ public static partial class OpenIddictClientWebIntegrationHandlers
             {
                 var settings = context.Registration.GetFacebookSettings();
 
-                context.UserInfoRequest["fields"] = string.Join(",", settings.Fields);
+                context.UserInfoRequest["fields"] = string.Join(Separators.Comma[0], settings.Fields);
             }
 
             // Linear's userinfo endpoint is a GraphQL implementation that requires
@@ -1213,7 +1211,7 @@ public static partial class OpenIddictClientWebIntegrationHandlers
             {
                 var settings = context.Registration.GetLinearSettings();
 
-                context.UserInfoRequest["query"] = $"query {{ viewer {{ {string.Join(" ", settings.UserFields)} }} }}";
+                context.UserInfoRequest["query"] = $"query {{ viewer {{ {string.Join(Separators.Space[0], settings.UserFields)} }} }}";
             }
 
             // Meetup's userinfo endpoint is a GraphQL implementation that requires
@@ -1222,7 +1220,7 @@ public static partial class OpenIddictClientWebIntegrationHandlers
             {
                 var settings = context.Registration.GetMeetupSettings();
 
-                context.UserInfoRequest["query"] = $"query {{ self {{ {string.Join(" ", settings.UserFields)} }} }}";
+                context.UserInfoRequest["query"] = $"query {{ self {{ {string.Join(Separators.Space[0], settings.UserFields)} }} }}";
             }
 
             // Patreon limits the number of fields returned by the userinfo endpoint
@@ -1232,7 +1230,7 @@ public static partial class OpenIddictClientWebIntegrationHandlers
             {
                 var settings = context.Registration.GetPatreonSettings();
 
-                context.UserInfoRequest["fields[user]"] = string.Join(",", settings.UserFields);
+                context.UserInfoRequest["fields[user]"] = string.Join(Separators.Comma[0], settings.UserFields);
             }
 
             // StackOverflow requires sending an application key and a site parameter
@@ -1274,9 +1272,9 @@ public static partial class OpenIddictClientWebIntegrationHandlers
             {
                 var settings = context.Registration.GetTwitterSettings();
 
-                context.UserInfoRequest["expansions"] = string.Join(",", settings.Expansions);
-                context.UserInfoRequest["tweet.fields"] = string.Join(",", settings.TweetFields);
-                context.UserInfoRequest["user.fields"] = string.Join(",", settings.UserFields);
+                context.UserInfoRequest["expansions"] = string.Join(Separators.Comma[0], settings.Expansions);
+                context.UserInfoRequest["tweet.fields"] = string.Join(Separators.Comma[0], settings.TweetFields);
+                context.UserInfoRequest["user.fields"] = string.Join(Separators.Comma[0], settings.UserFields);
             }
 
             // Weibo requires sending the user identifier as part of the userinfo request.
@@ -1358,9 +1356,9 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                 context.Registration.TokenValidationParameters.RoleClaimType);
 
             // Resolve the issuer that will be attached to the claims created by this handler.
-            var issuer = context.Registration.ClaimsIssuer ??
-                         context.Registration.ProviderName ??
-                         context.Registration.Issuer.AbsoluteUri;
+            var issuer = context.Registration.ClaimsIssuer
+                         ?? context.Registration.ProviderName
+                         ?? context.Registration.Issuer.AbsoluteUri;
 
             foreach (var parameter in parameters)
             {
@@ -1432,9 +1430,9 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                 return ValueTask.CompletedTask;
             }
 
-            var issuer = context.Registration.ClaimsIssuer ??
-                         context.Registration.ProviderName ??
-                         context.Registration.Issuer.AbsoluteUri;
+            var issuer = context.Registration.ClaimsIssuer
+                         ?? context.Registration.ProviderName
+                         ?? context.Registration.Issuer.AbsoluteUri;
 
             if (!context.MergedPrincipal.HasClaim(ClaimTypes.Email))
             {
@@ -1516,6 +1514,14 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                     // HubSpot returns the username as a custom "user" node:
                     ProviderTypes.HubSpot => (string?) context.UserInfoResponse?["user"],
 
+                    // ID Austria doesn't return a username so one is created using the standard "given_name"
+                    // and "family_name" claims extracted from the backchannel or frontchannel identity token:
+                    ProviderTypes.IdAustria
+                        when (context.BackchannelIdentityTokenPrincipal ?? // Always prefer the backchannel identity token when available.
+                              context.FrontchannelIdentityTokenPrincipal) is ClaimsPrincipal principal &&
+                              principal.HasClaim(Claims.GivenName) && principal.HasClaim(Claims.FamilyName)
+                         => $"{principal.GetClaim(Claims.GivenName)} {principal.GetClaim(Claims.FamilyName)}",
+
                     // Mailchimp returns the username as a custom "accountname" node:
                     ProviderTypes.Mailchimp => (string?) context.UserInfoResponse?["accountname"],
 
@@ -1523,8 +1529,8 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                     ProviderTypes.MusicBrainz => (string?) context.UserInfoResponse?["sub"],
 
                     // Nextcloud returns the username as a custom "displayname" or "display-name" node:
-                    ProviderTypes.Nextcloud => (string?) context.UserInfoResponse?["displayname"] ??
-                                               (string?) context.UserInfoResponse?["display-name"],
+                    ProviderTypes.Nextcloud => (string?) context.UserInfoResponse?["displayname"]
+                                               ?? (string?) context.UserInfoResponse?["display-name"],
 
                     // Notion returns the username as a custom "bot/owner/user/name" node but
                     // requires a special capability to access this node, that may not be present:
@@ -1678,6 +1684,20 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                 {
                     context.MergedPrincipal.AddClaim(ClaimTypes.NameIdentifier, value, issuer);
                 }
+            }
+
+            // Note: ID Austria doesn't return a stable "sub" claim and encourages clients to use
+            // the custom "urn:pvpgvat:oidc.bpk" claim to identify users across logins. To ensure
+            // the WS-Federation name identifier claim returned to the application is stable,
+            // the "urn:pvpgvat:oidc.bpk" claim is always used instead of the "sub" claim.
+            //
+            // For more information, see
+            // https://www.id-austria.gv.at/de/developer/anbinden/anbindung-mit-openid-connect.
+            if (context.Registration.ProviderType is ProviderTypes.IdAustria)
+            {
+                context.MergedPrincipal.SetClaim(ClaimTypes.NameIdentifier,
+                    context.BackchannelIdentityTokenPrincipal?.GetClaim("urn:pvpgvat:oidc.bpk")
+                    ?? context.FrontchannelIdentityTokenPrincipal?.GetClaim("urn:pvpgvat:oidc.bpk"));
             }
 
             return ValueTask.CompletedTask;
@@ -1858,11 +1878,11 @@ public static partial class OpenIddictClientWebIntegrationHandlers
                 // the standard format (that requires using a space as the scope separator):
                 ProviderTypes.Deezer or ProviderTypes.Disqus  or ProviderTypes.Shopify or
                 ProviderTypes.Strava or ProviderTypes.Todoist or ProviderTypes.Weibo
-                    => string.Join(",", context.Scopes),
+                    => string.Join(Separators.Comma[0], context.Scopes),
 
                 // The following providers are known to use plus-separated scopes instead of
                 // the standard format (that requires using a space as the scope separator):
-                ProviderTypes.Trovo => string.Join("+", context.Scopes),
+                ProviderTypes.Trovo => string.Join(Separators.Plus[0], context.Scopes),
 
                 _ => context.Request.Scope
             };

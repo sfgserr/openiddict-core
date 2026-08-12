@@ -83,13 +83,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -146,13 +146,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -200,13 +200,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -254,7 +254,7 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
@@ -415,13 +415,13 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                else if (notification.IsRequestSkipped)
+                if (notification.IsRequestSkipped)
                 {
                     context.SkipRequest();
                     return;
                 }
 
-                else if (notification.IsRejected)
+                if (notification.IsRejected)
                 {
                     context.Reject(
                         error: notification.Error ?? Errors.InvalidRequest,
@@ -469,11 +469,11 @@ public static partial class OpenIddictServerHandlers
 
                 Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
 
-                var application = await _applicationManager.FindByClientIdAsync(context.ClientId) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
+                var application = await _applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0032));
 
                 // Reject the request if the application is not allowed to use the revocation endpoint.
-                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Endpoints.Revocation))
+                if (!await _applicationManager.HasPermissionAsync(application, Permissions.Endpoints.Revocation, context.CancellationToken))
                 {
                     context.Logger.LogInformation(6116, SR.GetResourceString(SR.ID6116), context.ClientId);
 
@@ -615,8 +615,8 @@ public static partial class OpenIddictServerHandlers
                 ArgumentNullException.ThrowIfNull(context);
 
                 var notification = context.Transaction.GetProperty<ValidateRevocationRequestContext>(
-                    typeof(ValidateRevocationRequestContext).FullName!) ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0007));
+                    typeof(ValidateRevocationRequestContext).FullName!)
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0007));
 
                 Debug.Assert(notification.GenericTokenPrincipal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
@@ -671,7 +671,7 @@ public static partial class OpenIddictServerHandlers
                     return;
                 }
 
-                var token = await _tokenManager.FindByIdAsync(identifier);
+                var token = await _tokenManager.FindByIdAsync(identifier, context.CancellationToken);
                 if (token is null)
                 {
                     context.Logger.LogInformation(6123, SR.GetResourceString(SR.ID6123), identifier);
@@ -685,7 +685,7 @@ public static partial class OpenIddictServerHandlers
                 }
 
                 // Try to revoke the token. If an error occurs, return an error.
-                if (!await _tokenManager.TryRevokeAsync(token))
+                if (!await _tokenManager.TryRevokeAsync(token, context.CancellationToken))
                 {
                     context.Reject(
                         error: Errors.UnsupportedTokenType,

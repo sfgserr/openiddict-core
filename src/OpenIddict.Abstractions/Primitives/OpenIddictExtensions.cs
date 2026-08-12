@@ -308,9 +308,7 @@ public static class OpenIddictExtensions
                 continue;
             }
 
-            // Note: though the OIDC core specs does not include the OAuth 2.0-inherited response_type=token,
-            // it is considered as a valid response_type for the implicit flow for backward compatibility.
-            else if (segment.Equals(ResponseTypes.Token, StringComparison.Ordinal))
+            if (segment.Equals(ResponseTypes.Token, StringComparison.Ordinal))
             {
                 flags |= /* token */ 0x02;
 
@@ -359,14 +357,14 @@ public static class OpenIddictExtensions
                 continue;
             }
 
-            else if (segment.Equals(ResponseTypes.IdToken, StringComparison.Ordinal))
+            if (segment.Equals(ResponseTypes.IdToken, StringComparison.Ordinal))
             {
                 flags |= /* id_token: */ 0x02;
 
                 continue;
             }
 
-            else if (segment.Equals(ResponseTypes.Token, StringComparison.Ordinal))
+            if (segment.Equals(ResponseTypes.Token, StringComparison.Ordinal))
             {
                 flags |= /* token: */ 0x04;
 
@@ -678,7 +676,7 @@ public static class OpenIddictExtensions
 
         var builder = ImmutableDictionary.CreateBuilder<string, ImmutableArray<string>>(StringComparer.Ordinal);
 
-        foreach (var group in identity.Claims.GroupBy(claim => claim.Type))
+        foreach (var group in identity.Claims.GroupBy(claim => claim.Type, StringComparer.Ordinal))
         {
             var claims = group.ToList();
 
@@ -712,7 +710,7 @@ public static class OpenIddictExtensions
 
         var builder = ImmutableDictionary.CreateBuilder<string, ImmutableArray<string>>(StringComparer.Ordinal);
 
-        foreach (var group in principal.Claims.GroupBy(claim => claim.Type))
+        foreach (var group in principal.Claims.GroupBy(claim => claim.Type, StringComparer.Ordinal))
         {
             var claims = group.ToList();
 
@@ -749,7 +747,8 @@ public static class OpenIddictExtensions
 
         foreach (var destination in destinations)
         {
-            foreach (var claim in identity.Claims.Where(claim => claim.Type == destination.Key))
+            foreach (var claim in identity.Claims.Where(claim =>
+                string.Equals(claim.Type, destination.Key, StringComparison.Ordinal)))
             {
                 claim.SetDestinations(destination.Value);
             }
@@ -772,7 +771,8 @@ public static class OpenIddictExtensions
 
         foreach (var destination in destinations)
         {
-            foreach (var claim in principal.Claims.Where(claim => claim.Type == destination.Key))
+            foreach (var claim in principal.Claims.Where(claim =>
+                string.Equals(claim.Type, destination.Key, StringComparison.Ordinal)))
             {
                 claim.SetDestinations(destination.Value);
             }
@@ -2693,6 +2693,22 @@ public static class OpenIddictExtensions
         => principal.GetClaim(Claims.Private.AuthorizationId);
 
     /// <summary>
+    /// Gets the internal session identifier associated with the claims identity.
+    /// </summary>
+    /// <param name="identity">The claims identity.</param>
+    /// <returns>The unique identifier or <see langword="null"/> if the claim cannot be found.</returns>
+    public static string? GetSessionId(this ClaimsIdentity identity)
+        => identity.GetClaim(Claims.Private.SessionId);
+
+    /// <summary>
+    /// Gets the internal session identifier associated with the claims principal.
+    /// </summary>
+    /// <param name="principal">The claims principal.</param>
+    /// <returns>The unique identifier or <see langword="null"/> if the claim cannot be found.</returns>
+    public static string? GetSessionId(this ClaimsPrincipal principal)
+        => principal.GetClaim(Claims.Private.SessionId);
+
+    /// <summary>
     /// Gets the internal token identifier associated with the claims identity.
     /// </summary>
     /// <param name="identity">The claims identity.</param>
@@ -3343,6 +3359,24 @@ public static class OpenIddictExtensions
     /// <returns>The claims principal.</returns>
     public static ClaimsPrincipal SetAuthorizationId(this ClaimsPrincipal principal, string? identifier)
         => principal.SetClaim(Claims.Private.AuthorizationId, identifier);
+
+    /// <summary>
+    /// Sets the internal session identifier associated with the claims identity.
+    /// </summary>
+    /// <param name="identity">The claims identity.</param>
+    /// <param name="identifier">The unique identifier to store.</param>
+    /// <returns>The claims identity.</returns>
+    public static ClaimsIdentity SetSessionId(this ClaimsIdentity identity, string? identifier)
+        => identity.SetClaim(Claims.Private.SessionId, identifier);
+
+    /// <summary>
+    /// Sets the internal session identifier associated with the claims principal.
+    /// </summary>
+    /// <param name="principal">The claims principal.</param>
+    /// <param name="identifier">The unique identifier to store.</param>
+    /// <returns>The claims principal.</returns>
+    public static ClaimsPrincipal SetSessionId(this ClaimsPrincipal principal, string? identifier)
+        => principal.SetClaim(Claims.Private.SessionId, identifier);
 
     /// <summary>
     /// Sets the internal token identifier associated with the claims identity.

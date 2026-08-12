@@ -19,14 +19,36 @@ builder.Services.AddMvc();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseSqlite($"Filename={Path.Combine(Path.GetTempPath(), "openiddict-sandbox-aspnetcore-server.sqlite3")}");
+    options.UseSqlite($"Filename={Path.Join(Path.GetTempPath(), "openiddict-sandbox-aspnetcore-server.sqlite3")}");
+
+    // Developers who prefer using Microsoft SQL Server instead of SQLite can remove
+    // the previous line and configure OpenIddict to use the specified database:
+    //
+    // options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+
     options.UseOpenIddict();
 });
 
 // Register the Identity builder.Services.
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddClaimsPrincipalFactory<UserClaimsPrincipalFactory>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
+
+// Note: ASP.NET Core Identity doesn't store a unique identifier representing user sessions.
+//
+// To work around that, a custom IUserClaimsPrincipalFactory<TUser> is used to attach a unique identifier and a
+// custom OnRefreshingPrincipal event handler is used to restore that identifier when the cookie is refreshed.
+builder.Services.Configure<SecurityStampValidatorOptions>(options => options.OnRefreshingPrincipal = static context =>
+{
+    var identifier = context.CurrentPrincipal?.GetClaim("login_id");
+    if (!string.IsNullOrEmpty(identifier))
+    {
+        context.NewPrincipal?.SetClaim("login_id", identifier);
+    }
+
+    return Task.CompletedTask;
+});
 
 // OpenIddict offers native integration with Quartz.NET to perform scheduled tasks
 // (like pruning orphaned authorizations/tokens from the database) at regular intervals.
@@ -234,7 +256,7 @@ builder.Services.AddOpenIddict()
 
         options.EnableSelfSignedTlsClientAuthentication();
 
-        // Note: setting a static issuer is mandatory when using mTLS aliases to ensure it not
+        // Note: setting a static issuer is mandatory when using mTLS aliases to ensure it is not
         // dynamically computed based on the request URI, as this would result in two different
         // issuers being used (one pointing to the mTLS domain and one pointing to the regular one).
         options.SetIssuer("https://localhost:44395/");
@@ -348,11 +370,11 @@ builder.Services.Configure<KestrelServerOptions>(options => options.ListenAnyIP(
             ServerCertificate = store.Certificates
                 .Find(X509FindType.FindByExtension, "1.3.6.1.4.1.311.84.1.1", validOnly: false)
                 .Cast<X509Certificate2>()
-                .Where(static certificate => certificate.NotBefore < TimeProvider.System.GetLocalNow())
-                .Where(static certificate => certificate.NotAfter > TimeProvider.System.GetLocalNow())
+                .Where(static certificate => new DateTimeOffset(certificate.NotBefore) < TimeProvider.System.GetLocalNow())
+                .Where(static certificate => new DateTimeOffset(certificate.NotAfter) > TimeProvider.System.GetLocalNow())
                 .OrderByDescending(static certificate => certificate.NotAfter)
-                .FirstOrDefault() ??
-                throw new InvalidOperationException("The ASP.NET Core HTTPS development certificate was not found.")
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("The ASP.NET Core HTTPS development certificate was not found.")
         });
     }
 }));

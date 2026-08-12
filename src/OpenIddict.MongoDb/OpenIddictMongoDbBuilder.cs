@@ -48,6 +48,7 @@ public sealed class OpenIddictMongoDbBuilder
     /// <param name="configuration">The delegate used to configure the OpenIddict options.</param>
     /// <remarks>This extension can be safely called multiple times.</remarks>
     /// <returns>The <see cref="OpenIddictMongoDbBuilder"/> instance.</returns>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
     public OpenIddictMongoDbBuilder Configure(Action<OpenIddictMongoDbOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -92,6 +93,23 @@ public sealed class OpenIddictMongoDbBuilder
     }
 
     /// <summary>
+    /// Configures OpenIddict to use the specified entity as the default resource entity.
+    /// </summary>
+    /// <returns>The <see cref="OpenIddictMongoDbBuilder"/> instance.</returns>
+    public OpenIddictMongoDbBuilder ReplaceDefaultResourceEntity<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TResource>()
+        where TResource : OpenIddictMongoDbResource
+    {
+        Services.Replace(ServiceDescriptor.Scoped<IOpenIddictResourceManager>(static provider =>
+            provider.GetRequiredService<OpenIddictResourceManager<TResource>>()));
+
+        Services.Replace(ServiceDescriptor.Scoped<
+            IOpenIddictResourceStore<TResource>, OpenIddictMongoDbResourceStore<TResource>>());
+
+        return this;
+    }
+
+    /// <summary>
     /// Configures OpenIddict to use the specified entity as the default scope entity.
     /// </summary>
     /// <returns>The <see cref="OpenIddictMongoDbBuilder"/> instance.</returns>
@@ -104,6 +122,23 @@ public sealed class OpenIddictMongoDbBuilder
 
         Services.Replace(ServiceDescriptor.Scoped<
             IOpenIddictScopeStore<TScope>, OpenIddictMongoDbScopeStore<TScope>>());
+
+        return this;
+    }
+
+    /// <summary>
+    /// Configures OpenIddict to use the specified entity as the default session entity.
+    /// </summary>
+    /// <returns>The <see cref="OpenIddictMongoDbBuilder"/> instance.</returns>
+    public OpenIddictMongoDbBuilder ReplaceDefaultSessionEntity<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TSession>()
+        where TSession : OpenIddictMongoDbSession
+    {
+        Services.Replace(ServiceDescriptor.Scoped<IOpenIddictSessionManager>(static provider =>
+            provider.GetRequiredService<OpenIddictSessionManager<TSession>>()));
+
+        Services.Replace(ServiceDescriptor.Scoped<
+            IOpenIddictSessionStore<TSession>, OpenIddictMongoDbSessionStore<TSession>>());
 
         return this;
     }
@@ -150,6 +185,18 @@ public sealed class OpenIddictMongoDbBuilder
     }
 
     /// <summary>
+    /// Replaces the default resources collection name (by default, openiddict.resources).
+    /// </summary>
+    /// <param name="name">The collection name</param>
+    /// <returns>The <see cref="OpenIddictMongoDbBuilder"/> instance.</returns>
+    public OpenIddictMongoDbBuilder SetResourcesCollectionName(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        return Configure(options => options.ResourcesCollectionName = name);
+    }
+
+    /// <summary>
     /// Replaces the default scopes collection name (by default, openiddict.scopes).
     /// </summary>
     /// <param name="name">The collection name</param>
@@ -159,6 +206,18 @@ public sealed class OpenIddictMongoDbBuilder
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         return Configure(options => options.ScopesCollectionName = name);
+    }
+
+    /// <summary>
+    /// Replaces the default sessions collection name (by default, openiddict.sessions).
+    /// </summary>
+    /// <param name="name">The collection name</param>
+    /// <returns>The <see cref="OpenIddictMongoDbBuilder"/> instance.</returns>
+    public OpenIddictMongoDbBuilder SetSessionsCollectionName(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        return Configure(options => options.SessionsCollectionName = name);
     }
 
     /// <summary>
@@ -188,7 +247,7 @@ public sealed class OpenIddictMongoDbBuilder
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public override bool Equals(object? obj) => base.Equals(obj);
+    public override bool Equals([NotNullWhen(true)] object? obj) => base.Equals(obj);
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]

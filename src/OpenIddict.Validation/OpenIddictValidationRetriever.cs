@@ -7,6 +7,7 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Tokens;
 
 namespace OpenIddict.Validation;
 
@@ -41,21 +42,37 @@ public sealed class OpenIddictValidationRetriever : IConfigurationRetriever<Open
 
         cancel.ThrowIfCancellationRequested();
 
-        var configuration = await _service.GetConfigurationAsync(uri, cancel) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0145));
+        var configuration = await _service.GetConfigurationAsync(uri, cancel)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0145));
 
         if (configuration.JsonWebKeySetUri is null)
         {
             throw new InvalidOperationException(SR.GetResourceString(SR.ID0146));
         }
 
-        configuration.JsonWebKeySet = await _service.GetSecurityKeysAsync(configuration.JsonWebKeySetUri, cancel) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0147));
+        configuration.JsonWebKeySet = await _service.GetSecurityKeysAsync(configuration.JsonWebKeySetUri, cancel)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0147));
 
         // Copy the signing keys found in the JSON Web Key Set to the SigningKeys collection.
         foreach (var key in configuration.JsonWebKeySet.GetSigningKeys())
         {
             configuration.SigningKeys.Add(key);
+        }
+
+        // Note: IdentityModel doesn't currently return AKP keys when calling GetSigningKeys(), so a
+        // second pass is made to ensure that all AKP keys are added to the signing keys collection.
+        //
+        // For more information, see
+        // https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/3534.
+        for (var index = 0; index < configuration.JsonWebKeySet.Keys.Count; index++)
+        {
+            if (configuration.JsonWebKeySet.Keys[index] is {
+                Kty: JsonWebAlgorithmsKeyTypes.Akp,
+                Alg: SecurityAlgorithms.MlDsa44 or SecurityAlgorithms.MlDsa65 or SecurityAlgorithms.MlDsa87 } &&
+                JsonWebKeyConverter.TryConvertToSecurityKey(configuration.JsonWebKeySet.Keys[index], out SecurityKey? key))
+            {
+                configuration.SigningKeys.Add(key);
+            }
         }
 
         return configuration;

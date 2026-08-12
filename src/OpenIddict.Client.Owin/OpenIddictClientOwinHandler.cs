@@ -46,13 +46,23 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
     /// <inheritdoc/>
     protected override async Task InitializeCoreAsync()
     {
+        // Note: to ensure internal operations are not immediately cancelled when the request is aborted
+        // (which may represent a security risk if sensitive operations are in progress), an ad-hoc token
+        // source is always created and configured to be triggered 5 seconds after the request is aborted.
+        var source = new CancellationTokenSource();
+        var registration = Request.CallCancelled.Register(static state =>
+            ((CancellationTokenSource) state!).CancelAfter(TimeSpan.FromSeconds(5)), source);
+
+        Response.OnSendingHeaders(static state => ((CancellationTokenSource) state!).Dispose(), source);
+        Response.OnSendingHeaders(static state => ((CancellationTokenRegistration) state!).Dispose(), registration);
+
         // Note: the transaction may be already attached when replaying an OWIN request
         // (e.g when using a status code pages middleware re-invoking the OWIN pipeline).
         var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName);
         if (transaction is null)
         {
             // Create a new transaction and attach the OWIN request to make it available to the OWIN handlers.
-            transaction = await _factory.CreateTransactionAsync();
+            transaction = await _factory.CreateTransactionAsync(source.Token);
             transaction.Properties[typeof(IOwinRequest).FullName!] = new WeakReference<IOwinRequest>(Request);
 
             // Attach the OpenIddict client transaction to the OWIN shared dictionary
@@ -60,11 +70,7 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
             Context.Set(typeof(OpenIddictClientTransaction).FullName, transaction);
         }
 
-        var context = new ProcessRequestContext(transaction)
-        {
-            CancellationToken = Request.CallCancelled
-        };
-
+        var context = new ProcessRequestContext(transaction);
         await _dispatcher.DispatchAsync(context);
 
         // Store the context in the transaction so that it can be retrieved from InvokeAsync().
@@ -78,27 +84,26 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
         // in InitializeCoreAsync() to ensure the request context is available from AuthenticateCoreAsync() when
         // active authentication is used, as AuthenticateCoreAsync() is always called before InvokeAsync() in this case.
 
-        var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
+        var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
 
-        var context = transaction.GetProperty<ProcessRequestContext>(typeof(ProcessRequestContext).FullName!) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
+        var context = transaction.GetProperty<ProcessRequestContext>(typeof(ProcessRequestContext).FullName!)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
 
         if (context.IsRequestHandled)
         {
             return true;
         }
 
-        else if (context.IsRequestSkipped)
+        if (context.IsRequestSkipped)
         {
             return false;
         }
 
-        else if (context.IsRejected)
+        if (context.IsRejected)
         {
             var notification = new ProcessErrorContext(transaction)
             {
-                CancellationToken = Request.CallCancelled,
                 Error = context.Error ?? Errors.InvalidRequest,
                 ErrorDescription = context.ErrorDescription,
                 ErrorUri = context.ErrorUri,
@@ -112,7 +117,7 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
                 return true;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 return false;
             }
@@ -126,8 +131,8 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
     /// <inheritdoc/>
     protected override async Task<AuthenticationTicket?> AuthenticateCoreAsync()
     {
-        var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
+        var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
 
         // Note: in many cases, the authentication token was already validated by the time this action is called
         // (generally later in the pipeline, when using the pass-through mode). To avoid having to re-validate it,
@@ -135,10 +140,7 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
         var context = transaction.GetProperty<ProcessAuthenticationContext>(typeof(ProcessAuthenticationContext).FullName!);
         if (context is null)
         {
-            await _dispatcher.DispatchAsync(context = new ProcessAuthenticationContext(transaction)
-            {
-                CancellationToken = Request.CallCancelled
-            });
+            await _dispatcher.DispatchAsync(context = new ProcessAuthenticationContext(transaction));
 
             // Store the context object in the transaction so it can be later retrieved by handlers
             // that want to access the authentication result without triggering a new authentication flow.
@@ -150,7 +152,7 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
             return null;
         }
 
-        else if (context.IsRejected)
+        if (context.IsRejected)
         {
             // Note: the missing_token error is special-cased to indicate to Katana
             // that no authentication result could be produced due to the lack of token.
@@ -295,14 +297,13 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
 
         if (challenge is not null && Response.StatusCode is 401 or 403)
         {
-            var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
+            var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
 
             transaction.Properties[typeof(AuthenticationProperties).FullName!] = challenge.Properties ?? new AuthenticationProperties();
 
             var context = new ProcessChallengeContext(transaction)
             {
-                CancellationToken = Request.CallCancelled,
                 Principal = new ClaimsPrincipal(new ClaimsIdentity()),
                 Request = new OpenIddictRequest()
             };
@@ -314,11 +315,10 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
                 return;
             }
 
-            else if (context.IsRejected)
+            if (context.IsRejected)
             {
                 var notification = new ProcessErrorContext(transaction)
                 {
-                    CancellationToken = Request.CallCancelled,
                     Error = context.Error ?? Errors.InvalidRequest,
                     ErrorDescription = context.ErrorDescription,
                     ErrorUri = context.ErrorUri,
@@ -341,14 +341,13 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
 
         if (signout is not null)
         {
-            var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
+            var transaction = Context.Get<OpenIddictClientTransaction>(typeof(OpenIddictClientTransaction).FullName)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0315));
 
             transaction.Properties[typeof(AuthenticationProperties).FullName!] = signout.Properties ?? new AuthenticationProperties();
 
             var context = new ProcessSignOutContext(transaction)
             {
-                CancellationToken = Request.CallCancelled,
                 Principal = new ClaimsPrincipal(new ClaimsIdentity()),
                 Request = new OpenIddictRequest()
             };
@@ -360,11 +359,10 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
                 return;
             }
 
-            else if (context.IsRejected)
+            if (context.IsRejected)
             {
                 var notification = new ProcessErrorContext(transaction)
                 {
-                    CancellationToken = Request.CallCancelled,
                     Error = context.Error ?? Errors.InvalidRequest,
                     ErrorDescription = context.ErrorDescription,
                     ErrorUri = context.ErrorUri,
@@ -409,8 +407,8 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
                         return new AuthenticationResponseChallenge(
                             authenticationTypes: [OpenIddictClientOwinDefaults.AuthenticationType],
                             properties         : new AuthenticationProperties(dictionary: new Dictionary<string, string>(
-                                manager.AuthenticationResponseChallenge.Properties.Dictionary ??
-                                ImmutableDictionary.Create<string, string>())
+                                manager.AuthenticationResponseChallenge.Properties.Dictionary
+                                ?? ImmutableDictionary<string, string>.Empty, StringComparer.Ordinal)
                                 {
                                     [Properties.ProviderName] = type
                                 }));
@@ -448,8 +446,8 @@ public sealed class OpenIddictClientOwinHandler : AuthenticationHandler<Authenti
                         return new AuthenticationResponseRevoke(
                             authenticationTypes: [OpenIddictClientOwinDefaults.AuthenticationType],
                             properties         : new AuthenticationProperties(dictionary: new Dictionary<string, string>(
-                                manager.AuthenticationResponseRevoke.Properties.Dictionary ??
-                                ImmutableDictionary.Create<string, string>())
+                                manager.AuthenticationResponseRevoke.Properties.Dictionary
+                                ?? ImmutableDictionary<string, string>.Empty, StringComparer.Ordinal)
                                 {
                                     [Properties.ProviderName] = type
                                 }));

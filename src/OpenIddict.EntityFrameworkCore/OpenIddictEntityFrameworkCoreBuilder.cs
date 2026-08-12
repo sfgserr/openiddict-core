@@ -48,6 +48,7 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
     /// <param name="configuration">The delegate used to configure the OpenIddict options.</param>
     /// <remarks>This extension can be safely called multiple times.</remarks>
     /// <returns>The <see cref="OpenIddictEntityFrameworkCoreBuilder"/> instance.</returns>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
     public OpenIddictEntityFrameworkCoreBuilder Configure(Action<OpenIddictEntityFrameworkCoreOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -60,9 +61,6 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
     /// <summary>
     /// Prevents the Entity Framework Core stores from using bulk operations.
     /// </summary>
-    /// <remarks>
-    /// Note: bulk operations are only supported when targeting .NET 7.0 and higher.
-    /// </remarks>
     /// <returns>The <see cref="OpenIddictEntityFrameworkCoreBuilder"/> instance.</returns>
     public OpenIddictEntityFrameworkCoreBuilder DisableBulkOperations()
         => Configure(options => options.DisableBulkOperations = true);
@@ -77,7 +75,9 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
         where TKey : notnull, IEquatable<TKey>
         => ReplaceDefaultEntities<OpenIddictEntityFrameworkCoreApplication<TKey>,
                                   OpenIddictEntityFrameworkCoreAuthorization<TKey>,
+                                  OpenIddictEntityFrameworkCoreResource<TKey>,
                                   OpenIddictEntityFrameworkCoreScope<TKey>,
+                                  OpenIddictEntityFrameworkCoreSession<TKey>,
                                   OpenIddictEntityFrameworkCoreToken<TKey>, TKey>();
 
     /// <summary>
@@ -88,16 +88,19 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
     public OpenIddictEntityFrameworkCoreBuilder ReplaceDefaultEntities<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TApplication,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAuthorization,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TResource,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TScope,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TSession,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TToken,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TKey>()
         where TApplication : OpenIddictEntityFrameworkCoreApplication<TKey, TAuthorization, TToken>
         where TAuthorization : OpenIddictEntityFrameworkCoreAuthorization<TKey, TApplication, TToken>
+        where TResource : OpenIddictEntityFrameworkCoreResource<TKey>
         where TScope : OpenIddictEntityFrameworkCoreScope<TKey>
+        where TSession : OpenIddictEntityFrameworkCoreSession<TKey, TApplication, TAuthorization>
         where TToken : OpenIddictEntityFrameworkCoreToken<TKey, TApplication, TAuthorization>
         where TKey : notnull, IEquatable<TKey>
     {
-#if NET
         // If the specified key type isn't a string (which is special-cased by the stores to avoid having to resolve
         // a TypeDescriptor instance) and the platform supports type registration, register the key type to ensure the
         // TypeDescriptor associated with that type will be preserved by the IL Linker and can be resolved at runtime.
@@ -105,13 +108,17 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
         {
             TypeDescriptor.RegisterType<TKey>();
         }
-#endif
+
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictApplicationManager>(static provider =>
             provider.GetRequiredService<OpenIddictApplicationManager<TApplication>>()));
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictAuthorizationManager>(static provider =>
             provider.GetRequiredService<OpenIddictAuthorizationManager<TAuthorization>>()));
+        Services.Replace(ServiceDescriptor.Scoped<IOpenIddictResourceManager>(static provider =>
+            provider.GetRequiredService<OpenIddictResourceManager<TResource>>()));
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictScopeManager>(static provider =>
             provider.GetRequiredService<OpenIddictScopeManager<TScope>>()));
+        Services.Replace(ServiceDescriptor.Scoped<IOpenIddictSessionManager>(static provider =>
+            provider.GetRequiredService<OpenIddictSessionManager<TSession>>()));
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictTokenManager>(static provider =>
             provider.GetRequiredService<OpenIddictTokenManager<TToken>>()));
 
@@ -119,8 +126,12 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
             OpenIddictEntityFrameworkCoreApplicationStore<TApplication, TAuthorization, TToken, TKey>>());
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictAuthorizationStore<TAuthorization>,
             OpenIddictEntityFrameworkCoreAuthorizationStore<TAuthorization, TApplication, TToken, TKey>>());
+        Services.Replace(ServiceDescriptor.Scoped<IOpenIddictResourceStore<TResource>,
+            OpenIddictEntityFrameworkCoreResourceStore<TResource, TKey>>());
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictScopeStore<TScope>,
             OpenIddictEntityFrameworkCoreScopeStore<TScope, TKey>>());
+        Services.Replace(ServiceDescriptor.Scoped<IOpenIddictSessionStore<TSession>,
+            OpenIddictEntityFrameworkCoreSessionStore<TSession, TApplication, TAuthorization, TToken, TKey>>());
         Services.Replace(ServiceDescriptor.Scoped<IOpenIddictTokenStore<TToken>,
             OpenIddictEntityFrameworkCoreTokenStore<TToken, TApplication, TAuthorization, TKey>>());
 
@@ -142,7 +153,7 @@ public sealed class OpenIddictEntityFrameworkCoreBuilder
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public override bool Equals(object? obj) => base.Equals(obj);
+    public override bool Equals([NotNullWhen(true)] object? obj) => base.Equals(obj);
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]

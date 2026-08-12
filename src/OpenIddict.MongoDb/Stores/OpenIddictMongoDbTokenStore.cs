@@ -32,7 +32,7 @@ public class OpenIddictMongoDbTokenStore : OpenIddictMongoDbTokenStore<OpenIddic
 /// <summary>
 /// Provides methods allowing to manage the tokens stored in a database.
 /// </summary>
-/// <typeparam name="TToken">The type of the Token entity.</typeparam>
+/// <typeparam name="TToken">The type of the token entity.</typeparam>
 public class OpenIddictMongoDbTokenStore<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TToken> : IOpenIddictTokenStore<TToken>
     where TToken : OpenIddictMongoDbToken
@@ -100,41 +100,41 @@ public class OpenIddictMongoDbTokenStore<
             entity.Id == token.Id &&
             entity.ConcurrencyToken == token.ConcurrencyToken, cancellationToken)).DeletedCount is 0)
         {
-            throw new ConcurrencyException(SR.GetResourceString(SR.ID0247));
+            throw new ConcurrencyException(SR.GetResourceString(SR.ID0239));
         }
     }
 
     /// <inheritdoc/>
     public virtual async IAsyncEnumerable<TToken> FindAsync(
-        string? subject, string? client,
-        string? status, string? type, [EnumeratorCancellation] CancellationToken cancellationToken)
+        (string? Subject, string? ApplicationId, string? Status, string? Type) query,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var database = await Context.GetDatabaseAsync(cancellationToken);
         var collection = database.GetCollection<TToken>(Options.CurrentValue.TokensCollectionName);
 
-        IQueryable<TToken> query = collection.AsQueryable();
+        IQueryable<TToken> tokens = collection.AsQueryable();
 
-        if (!string.IsNullOrEmpty(subject))
+        if (!string.IsNullOrEmpty(query.Subject))
         {
-            query = query.Where(token => token.Subject == subject);
+            tokens = tokens.Where(token => token.Subject == query.Subject);
         }
 
-        if (!string.IsNullOrEmpty(client))
+        if (!string.IsNullOrEmpty(query.ApplicationId))
         {
-            query = query.Where(token => token.ApplicationId == ObjectId.Parse(client));
+            tokens = tokens.Where(token => token.ApplicationId == ObjectId.Parse(query.ApplicationId));
         }
 
-        if (!string.IsNullOrEmpty(status))
+        if (!string.IsNullOrEmpty(query.Status))
         {
-            query = query.Where(token => token.Status == status);
+            tokens = tokens.Where(token => token.Status == query.Status);
         }
 
-        if (!string.IsNullOrEmpty(type))
+        if (!string.IsNullOrEmpty(query.Type))
         {
-            query = query.Where(token => token.Type == type);
+            tokens = tokens.Where(token => token.Type == query.Type);
         }
 
-        await foreach (var token in query.ToAsyncEnumerable(cancellationToken))
+        await foreach (var token in tokens.ToAsyncEnumerable().WithCancellation(cancellationToken))
         {
             yield return token;
         }
@@ -153,7 +153,7 @@ public class OpenIddictMongoDbTokenStore<
             var collection = database.GetCollection<TToken>(Options.CurrentValue.TokensCollectionName);
 
             await foreach (var token in collection.Find(token =>
-                token.ApplicationId == ObjectId.Parse(identifier)).ToAsyncEnumerable(cancellationToken))
+                token.ApplicationId == ObjectId.Parse(identifier)).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return token;
             }
@@ -173,7 +173,7 @@ public class OpenIddictMongoDbTokenStore<
             var collection = database.GetCollection<TToken>(Options.CurrentValue.TokensCollectionName);
 
             await foreach (var token in collection.Find(token =>
-                token.AuthorizationId == ObjectId.Parse(identifier)).ToAsyncEnumerable(cancellationToken))
+                token.AuthorizationId == ObjectId.Parse(identifier)).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return token;
             }
@@ -214,7 +214,7 @@ public class OpenIddictMongoDbTokenStore<
             var database = await Context.GetDatabaseAsync(cancellationToken);
             var collection = database.GetCollection<TToken>(Options.CurrentValue.TokensCollectionName);
 
-            await foreach (var token in collection.Find(token => token.Subject == subject).ToAsyncEnumerable(cancellationToken))
+            await foreach (var token in collection.Find(token => token.Subject == subject).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return token;
             }
@@ -226,12 +226,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.ApplicationId == ObjectId.Empty)
-        {
-            return new(result: null);
-        }
-
-        return new(token.ApplicationId.ToString());
+        return new(token.ApplicationId != ObjectId.Empty ? token.ApplicationId.ToString() : null);
     }
 
     /// <inheritdoc/>
@@ -252,12 +247,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.AuthorizationId == ObjectId.Empty)
-        {
-            return new(result: null);
-        }
-
-        return new(token.AuthorizationId.ToString());
+        return new(token.AuthorizationId != ObjectId.Empty ? token.AuthorizationId.ToString() : null);
     }
 
     /// <inheritdoc/>
@@ -265,12 +255,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.CreationDate is null)
-        {
-            return new(result: null);
-        }
-
-        return new(DateTime.SpecifyKind(token.CreationDate.Value, DateTimeKind.Utc));
+        return new(token.CreationDate is DateTime date ? new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)) : null);
     }
 
     /// <inheritdoc/>
@@ -278,12 +263,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.ExpirationDate is null)
-        {
-            return new(result: null);
-        }
-
-        return new(DateTime.SpecifyKind(token.ExpirationDate.Value, DateTimeKind.Utc));
+        return new(token.ExpirationDate is DateTime date ? new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)) : null);
     }
 
     /// <inheritdoc/>
@@ -309,11 +289,11 @@ public class OpenIddictMongoDbTokenStore<
 
         if (token.Properties is null)
         {
-            return new(ImmutableDictionary.Create<string, JsonElement>());
+            return new([]);
         }
 
         using var document = JsonDocument.Parse(token.Properties.ToJson());
-        var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>();
+        var builder = ImmutableDictionary.CreateBuilder<string, JsonElement>(StringComparer.Ordinal);
 
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -328,12 +308,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.RedemptionDate is null)
-        {
-            return new(result: null);
-        }
-
-        return new(DateTime.SpecifyKind(token.RedemptionDate.Value, DateTimeKind.Utc));
+        return new(token.RedemptionDate is DateTime date ? new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)) : null);
     }
 
     /// <inheritdoc/>
@@ -379,7 +354,7 @@ public class OpenIddictMongoDbTokenStore<
         catch (MemberAccessException exception)
         {
             return new(Task.FromException<TToken>(
-                new InvalidOperationException(SR.GetResourceString(SR.ID0248), exception)));
+                new InvalidOperationException(SR.GetResourceString(SR.ID0240), exception)));
         }
     }
 
@@ -392,17 +367,17 @@ public class OpenIddictMongoDbTokenStore<
 
         var query = (IQueryable<TToken>) collection.AsQueryable().OrderBy(token => token.Id);
 
-        if (offset.HasValue)
+        if (offset is not null)
         {
             query = query.Skip(offset.Value);
         }
 
-        if (count.HasValue)
+        if (count is not null)
         {
             query = query.Take(count.Value);
         }
 
-        await foreach (var token in ((IAsyncCursorSource<TToken>) query).ToAsyncEnumerable(cancellationToken))
+        await foreach (var token in ((IAsyncCursorSource<TToken>) query).ToAsyncEnumerable().WithCancellation(cancellationToken))
         {
             yield return token;
         }
@@ -422,7 +397,7 @@ public class OpenIddictMongoDbTokenStore<
             var database = await Context.GetDatabaseAsync(cancellationToken);
             var collection = database.GetCollection<TToken>(Options.CurrentValue.TokensCollectionName);
 
-            await foreach (var element in query(collection.AsQueryable(), state).ToAsyncEnumerable(cancellationToken))
+            await foreach (var element in query(collection.AsQueryable(), state).ToAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 yield return element;
             }
@@ -455,9 +430,7 @@ public class OpenIddictMongoDbTokenStore<
         // maximum number of elements that can be removed by a single call to PruneAsync() is deliberately limited.
         foreach (var chunk in identifiers.Take(1_000_000).Chunk(1_000))
         {
-            // Note: Enumerable.Contains() is deliberately used without the extension method syntax to ensure the
-            // span-based MemoryExtensions.Contains() API (which is not supported by MongoDB) is not used instead.
-            result += (await collection.DeleteManyAsync(token => Enumerable.Contains(chunk, token.Id), cancellationToken)).DeletedCount;
+            result += (await collection.DeleteManyAsync(token => chunk.Contains(token.Id), cancellationToken)).DeletedCount;
         }
 
         return result;
@@ -548,15 +521,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (!string.IsNullOrEmpty(identifier))
-        {
-            token.ApplicationId = ObjectId.Parse(identifier);
-        }
-
-        else
-        {
-            token.ApplicationId = ObjectId.Empty;
-        }
+        token.ApplicationId = !string.IsNullOrEmpty(identifier) ? ObjectId.Parse(identifier) : ObjectId.Empty;
 
         return ValueTask.CompletedTask;
     }
@@ -566,15 +531,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (!string.IsNullOrEmpty(identifier))
-        {
-            token.AuthorizationId = ObjectId.Parse(identifier);
-        }
-
-        else
-        {
-            token.AuthorizationId = ObjectId.Empty;
-        }
+        token.AuthorizationId = !string.IsNullOrEmpty(identifier) ? ObjectId.Parse(identifier) : ObjectId.Empty;
 
         return ValueTask.CompletedTask;
     }
@@ -615,7 +572,7 @@ public class OpenIddictMongoDbTokenStore<
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (properties is not { Count: > 0 })
+        if (properties is not { IsEmpty: false })
         {
             token.Properties = null;
 
@@ -712,7 +669,7 @@ public class OpenIddictMongoDbTokenStore<
             entity.Id == token.Id &&
             entity.ConcurrencyToken == timestamp, token, null as ReplaceOptions, cancellationToken)).MatchedCount is 0)
         {
-            throw new ConcurrencyException(SR.GetResourceString(SR.ID0247));
+            throw new ConcurrencyException(SR.GetResourceString(SR.ID0239));
         }
     }
 }

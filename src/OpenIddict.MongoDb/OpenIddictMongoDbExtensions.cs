@@ -32,14 +32,18 @@ public static class OpenIddictMongoDbExtensions
 
         builder.SetDefaultApplicationEntity<OpenIddictMongoDbApplication>()
                .SetDefaultAuthorizationEntity<OpenIddictMongoDbAuthorization>()
+               .SetDefaultResourceEntity<OpenIddictMongoDbResource>()
                .SetDefaultScopeEntity<OpenIddictMongoDbScope>()
+               .SetDefaultSessionEntity<OpenIddictMongoDbSession>()
                .SetDefaultTokenEntity<OpenIddictMongoDbToken>();
 
         // Note: the Mongo stores don't depend on scoped/transient services and thus can
         // be safely registered as singleton services and shared/reused across requests.
         builder.ReplaceApplicationStore<OpenIddictMongoDbApplication, OpenIddictMongoDbApplicationStore>(ServiceLifetime.Singleton)
                .ReplaceAuthorizationStore<OpenIddictMongoDbAuthorization, OpenIddictMongoDbAuthorizationStore>(ServiceLifetime.Singleton)
+               .ReplaceResourceStore<OpenIddictMongoDbResource, OpenIddictMongoDbResourceStore>(ServiceLifetime.Singleton)
                .ReplaceScopeStore<OpenIddictMongoDbScope, OpenIddictMongoDbScopeStore>(ServiceLifetime.Singleton)
+               .ReplaceSessionStore<OpenIddictMongoDbSession, OpenIddictMongoDbSessionStore>(ServiceLifetime.Singleton)
                .ReplaceTokenStore<OpenIddictMongoDbToken, OpenIddictMongoDbTokenStore>(ServiceLifetime.Singleton);
 
         builder.Services.TryAddSingleton<IOpenIddictMongoDbContext, OpenIddictMongoDbContext>();

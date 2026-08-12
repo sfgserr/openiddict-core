@@ -353,9 +353,6 @@ Consider using 'options.AddEncryptionCredentials(EncryptingCredentials)' instead
     <value>A signature algorithm cannot be automatically inferred from the signing key.
 Consider using 'options.AddSigningCredentials(SigningCredentials)' instead.</value>
   </data>
-  <data name="ID0069" xml:space="preserve">
-    <value>ECDSA signing keys are not supported on this platform.</value>
-  </data>
   <data name="ID0070" xml:space="preserve">
     <value>The specified certificate is not a signing certificate.</value>
   </data>
@@ -813,10 +810,10 @@ To register the OWIN integration, use 'services.AddOpenIddict().AddValidation().
     <value>The client secret hash cannot be set on the application entity.</value>
   </data>
   <data name="ID0207" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to create a new application:</value>
+    <value>One or more validation error(s) occurred while trying to create a new entity:</value>
   </data>
   <data name="ID0208" xml:space="preserve">
-    <value>An error occurred while trying to create a new application.</value>
+    <value>An error occurred while trying to create a new entity.</value>
   </data>
   <data name="ID0209" xml:space="preserve">
     <value>The client type cannot be null or empty.</value>
@@ -837,7 +834,7 @@ To register the OWIN integration, use 'services.AddOpenIddict().AddValidation().
     <value>Callback URIs must be valid absolute URIs.</value>
   </data>
   <data name="ID0215" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to update an existing application:</value>
+    <value>One or more validation error(s) occurred while trying to update an existing entity:</value>
   </data>
   <data name="ID0216" xml:space="preserve">
     <value>The secret cannot be null or empty.</value>
@@ -847,33 +844,6 @@ To register the OWIN integration, use 'services.AddOpenIddict().AddValidation().
   </data>
   <data name="ID0218" xml:space="preserve">
     <value>The client secret payload stored in the database is malformed, uses an unsupported version or doesn't meet the minimum security requirements and may have been tampered with.</value>
-  </data>
-  <data name="ID0219" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to create a new authorization:</value>
-  </data>
-  <data name="ID0220" xml:space="preserve">
-    <value>An error occurred while trying to create a new authorization.</value>
-  </data>
-  <data name="ID0221" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to update an existing authorization:</value>
-  </data>
-  <data name="ID0222" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to create a new scope:</value>
-  </data>
-  <data name="ID0223" xml:space="preserve">
-    <value>An error occurred while trying to create a new scope.</value>
-  </data>
-  <data name="ID0224" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to update an existing scope:</value>
-  </data>
-  <data name="ID0225" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to create a new token:</value>
-  </data>
-  <data name="ID0226" xml:space="preserve">
-    <value>An error occurred while trying to create a new token.</value>
-  </data>
-  <data name="ID0227" xml:space="preserve">
-    <value>One or more validation error(s) occurred while trying to update an existing token:</value>
   </data>
   <data name="ID0232" xml:space="preserve">
     <value>The specified type is invalid.</value>
@@ -886,51 +856,24 @@ To register the OWIN integration, use 'services.AddOpenIddict().AddValidation().
 To configure the OpenIddict Entity Framework 6.x stores to use a specific 'DbContext', use 'options.UseEntityFramework().UseDbContext&lt;TContext&gt;()'.</value>
   </data>
   <data name="ID0239" xml:space="preserve">
-    <value>The application was concurrently updated and cannot be persisted in its current state.
-Reload the application from the database and retry the operation.</value>
+    <value>The entity was concurrently updated and cannot be persisted in its current state.
+Reload the entity from the database and retry the operation.</value>
   </data>
   <data name="ID0240" xml:space="preserve">
-    <value>An error occurred while trying to create a new application instance.
-Make sure that the application entity is not abstract and has a public parameterless constructor or create a custom application store that overrides 'InstantiateAsync()' to use a custom factory.</value>
-  </data>
-  <data name="ID0241" xml:space="preserve">
-    <value>The authorization was concurrently updated and cannot be persisted in its current state.
-Reload the authorization from the database and retry the operation.</value>
-  </data>
-  <data name="ID0242" xml:space="preserve">
-    <value>An error occurred while trying to create a new authorization instance.
-Make sure that the authorization entity is not abstract and has a public parameterless constructor or create a custom authorization store that overrides 'InstantiateAsync()' to use a custom factory.</value>
+    <value>An error occurred while trying to create a new entity instance.
+Make sure that the entity is not abstract and has a public parameterless constructor or create a custom store that overrides 'InstantiateAsync()' to use a custom factory.</value>
   </data>
   <data name="ID0243" xml:space="preserve">
     <value>An error occurred while pruning authorizations.</value>
   </data>
   <data name="ID0244" xml:space="preserve">
-    <value>The application associated with the authorization cannot be found.</value>
-  </data>
-  <data name="ID0245" xml:space="preserve">
-    <value>The scope was concurrently updated and cannot be persisted in its current state.
-Reload the scope from the database and retry the operation.</value>
-  </data>
-  <data name="ID0246" xml:space="preserve">
-    <value>An error occurred while trying to create a new scope instance.
-Make sure that the scope entity is not abstract and has a public parameterless constructor or create a custom scope store that overrides 'InstantiateAsync()' to use a custom factory.</value>
-  </data>
-  <data name="ID0247" xml:space="preserve">
-    <value>The token was concurrently updated and cannot be persisted in its current state.
-Reload the token from the database and retry the operation.</value>
-  </data>
-  <data name="ID0248" xml:space="preserve">
-    <value>An error occurred while trying to create a new token instance.
-Make sure that the token entity is not abstract and has a public parameterless constructor or create a custom token store that overrides 'InstantiateAsync()' to use a custom factory.</value>
+    <value>The application matching the specified identifier cannot be found in the change tracker or in the database.</value>
   </data>
   <data name="ID0249" xml:space="preserve">
     <value>An error occurred while pruning tokens.</value>
   </data>
-  <data name="ID0250" xml:space="preserve">
-    <value>The application associated with the token cannot be found.</value>
-  </data>
   <data name="ID0251" xml:space="preserve">
-    <value>The authorization associated with the token cannot be found.</value>
+    <value>The authorization matching the specified identifier cannot be found in the change tracker or in the database.</value>
   </data>
   <data name="ID0253" xml:space="preserve">
     <value>No Entity Framework Core context was configured to be used with OpenIddict.
@@ -2493,6 +2436,18 @@ To use a custom policy relying on the system store, set 'OpenIddictServerOptions
   <data name="ID2205" xml:space="preserve">
     <value>The specified TLS client certificate is not allowed or valid for this operation.</value>
   </data>
+  <data name="ID2206" xml:space="preserve">
+    <value>The resource name cannot be null or empty.</value>
+  </data>
+  <data name="ID2207" xml:space="preserve">
+    <value>The resource name must be a valid absolute URI.</value>
+  </data>
+  <data name="ID2208" xml:space="preserve">
+    <value>A resource with the same name already exists.</value>
+  </data>
+  <data name="ID2209" xml:space="preserve">
+    <value>The login identifier cannot be null or empty and must match the value used to represent the user session.</value>
+  </data>
   <data name="ID4000" xml:space="preserve">
     <value>The '{0}' parameter shouldn't be null or empty at this point.</value>
   </data>
@@ -2721,7 +2676,7 @@ The principal used to create the token contained the following claims: {Claims}.
     <value>A JSON Web Key was excluded from the key set because it didn't contain the mandatory '{Parameter}' parameter.</value>
   </data>
   <data name="ID6071" xml:space="preserve">
-    <value>An unsupported signing key of type '{Type}' was ignored and excluded from the key set. Only RSA and ECDSA asymmetric security keys can be exposed via the JSON Web Key Set endpoint.</value>
+    <value>An unsupported signing key of type '{Type}' was ignored and excluded from the key set. Only RSA, ECDSA and ML-DSA asymmetric security keys can be exposed via the JSON Web Key Set endpoint.</value>
   </data>
   <data name="ID6072" xml:space="preserve">
     <value>An unsupported signing key of type '{Type}' was ignored and excluded from the key set. Only RSA asymmetric security keys can be exposed via the JSON Web Key Set endpoint.</value>
@@ -3347,6 +3302,9 @@ This may indicate that the hashed entry is corrupted or malformed.</value>
   </data>
   <data name="ID6295" xml:space="preserve">
     <value>The client secret attached to the client application {ClientId} couldn't be automatically re-hashed due to a concurency exception.</value>
+  </data>
+  <data name="ID6296" xml:space="preserve">
+    <value>A signing key of type '{Type}' was ignored because its ML-DSA public key couldn't be extracted.</value>
   </data>
   <data name="ID8000" xml:space="preserve">
     <value>https://documentation.openiddict.com/errors/{0}</value>

@@ -94,18 +94,6 @@ internal static class OpenIddictHelpers
     /// <returns>An absolute URI from the specified <paramref name="left"/> and <paramref name="right"/>.</returns>
     /// <exception cref="InvalidOperationException"><paramref name="left"/> is not an absolute URI.</exception>
     [return: NotNullIfNotNull(nameof(right))]
-    public static Uri? CreateAbsoluteUri(Uri? left, string? right)
-        => CreateAbsoluteUri(left, !string.IsNullOrEmpty(right) ? new Uri(right, UriKind.RelativeOrAbsolute) : null);
-
-    /// <summary>
-    /// Computes an absolute URI from the specified <paramref name="left"/> and <paramref name="right"/> URIs.
-    /// Note: if the <paramref name="right"/> URI is already absolute, it is directly returned.
-    /// </summary>
-    /// <param name="left">The left part.</param>
-    /// <param name="right">The right part.</param>
-    /// <returns>An absolute URI from the specified <paramref name="left"/> and <paramref name="right"/>.</returns>
-    /// <exception cref="InvalidOperationException"><paramref name="left"/> is not an absolute URI.</exception>
-    [return: NotNullIfNotNull(nameof(right))]
     public static Uri? CreateAbsoluteUri(Uri? left, Uri? right)
     {
         if (right is null)
@@ -288,8 +276,8 @@ internal static class OpenIddictHelpers
                 Key: parts[0] is string key ? Uri.UnescapeDataString(key) : null,
                 Value: parts.Length is > 1 && parts[1] is string value ? Uri.UnescapeDataString(value) : null))
             .Where(static pair => !string.IsNullOrEmpty(pair.Key))
-            .GroupBy(static pair => pair.Key)
-            .ToDictionary(static pair => pair.Key!, static pair => new StringValues([.. pair.Select(parts => parts.Value)]));
+            .GroupBy(static pair => pair.Key, StringComparer.Ordinal)
+            .ToDictionary(static pair => pair.Key!, static pair => new StringValues([.. pair.Select(parts => parts.Value)]), StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -309,8 +297,8 @@ internal static class OpenIddictHelpers
                 Key: parts[0] is string key ? Uri.UnescapeDataString(key) : null,
                 Value: parts.Length is > 1 && parts[1] is string value ? Uri.UnescapeDataString(value) : null))
             .Where(static pair => !string.IsNullOrEmpty(pair.Key))
-            .GroupBy(static pair => pair.Key)
-            .ToDictionary(static pair => pair.Key!, static pair => new StringValues([.. pair.Select(parts => parts.Value)]));
+            .GroupBy(static pair => pair.Key, StringComparer.Ordinal)
+            .ToDictionary(static pair => pair.Key!, static pair => new StringValues([.. pair.Select(parts => parts.Value)]), StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -357,7 +345,7 @@ internal static class OpenIddictHelpers
         while (enumerator.MoveNext())
         {
             var element = enumerator.GetTextElement();
-            if (charset.Contains(element))
+            if (charset.Contains(element, StringComparer.Ordinal))
             {
                 builder.Append(element);
             }
@@ -569,7 +557,7 @@ internal static class OpenIddictHelpers
     /// <summary>
     /// Note: this implementation was taken from ASP.NET Core.
     /// </summary>
-    private class FormReader
+    private sealed class FormReader
     {
         public const int DefaultValueCountLimit = 1024;
         public const int DefaultKeyLengthLimit = 1024 * 2;
@@ -610,7 +598,7 @@ internal static class OpenIddictHelpers
             while (!_endOfStream)
             {
                 // Empty
-                if (_bufferCount == 0)
+                if (_bufferCount is 0)
                 {
                     Buffer();
                 }
@@ -623,7 +611,7 @@ internal static class OpenIddictHelpers
 
         public async Task<KeyValuePair<string, string>?> ReadNextPairAsync(CancellationToken cancellationToken = new CancellationToken())
         {
-            await ReadNextPairAsyncImpl(cancellationToken);
+            await ReadNextPairAsyncImplAsync(cancellationToken);
             if (ReadSucceeded())
             {
                 return KeyValuePair.Create(_currentKey, _currentValue);
@@ -631,12 +619,12 @@ internal static class OpenIddictHelpers
             return null;
         }
 
-        private async Task ReadNextPairAsyncImpl(CancellationToken cancellationToken = new CancellationToken())
+        private async Task ReadNextPairAsyncImplAsync(CancellationToken cancellationToken = new CancellationToken())
         {
             StartReadNextPair();
             while (!_endOfStream)
             {
-                if (_bufferCount == 0)
+                if (_bufferCount is 0)
                 {
                     await BufferAsync(cancellationToken);
                 }
@@ -655,20 +643,20 @@ internal static class OpenIddictHelpers
 
         private bool TryReadNextPair()
         {
-            if (_currentKey == null)
+            if (_currentKey is null)
             {
                 if (!TryReadWord('=', KeyLengthLimit, out _currentKey))
                 {
                     return false;
                 }
 
-                if (_bufferCount == 0)
+                if (_bufferCount is 0)
                 {
                     return false;
                 }
             }
 
-            if (_currentValue == null)
+            if (_currentValue is null)
             {
                 if (!TryReadWord('&', ValueLengthLimit, out _currentValue))
                 {
@@ -692,7 +680,7 @@ internal static class OpenIddictHelpers
 
         private bool ReadChar(char separator, int limit, [NotNullWhen(true)] out string? word)
         {
-            if (_bufferCount == 0)
+            if (_bufferCount is 0)
             {
                 word = BuildWord();
                 return true;
@@ -708,7 +696,8 @@ internal static class OpenIddictHelpers
             }
             if (_builder.Length >= limit)
             {
-                throw new InvalidDataException($"Form key or value length limit {limit} exceeded.");
+                throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+                    $"Form key or value length limit {limit} exceeded."));
             }
             _builder.Append(c);
             word = null;
@@ -727,7 +716,7 @@ internal static class OpenIddictHelpers
         {
             _bufferOffset = 0;
             _bufferCount = _reader.Read(_buffer, 0, _buffer.Length);
-            _endOfStream = _bufferCount == 0;
+            _endOfStream = _bufferCount is 0;
         }
 
         private async Task BufferAsync(CancellationToken cancellationToken)
@@ -735,7 +724,7 @@ internal static class OpenIddictHelpers
             cancellationToken.ThrowIfCancellationRequested();
             _bufferOffset = 0;
             _bufferCount = await _reader.ReadAsync(_buffer, 0, _buffer.Length);
-            _endOfStream = _bufferCount == 0;
+            _endOfStream = _bufferCount is 0;
         }
 
         public Dictionary<string, StringValues> ReadForm()
@@ -754,7 +743,7 @@ internal static class OpenIddictHelpers
             var accumulator = new KeyValueAccumulator();
             while (!_endOfStream)
             {
-                await ReadNextPairAsyncImpl(cancellationToken);
+                await ReadNextPairAsyncImplAsync(cancellationToken);
                 Append(ref accumulator);
             }
             return accumulator.GetResults();
@@ -763,7 +752,7 @@ internal static class OpenIddictHelpers
         [MemberNotNullWhen(true, nameof(_currentKey), nameof(_currentValue))]
         private bool ReadSucceeded()
         {
-            return _currentKey != null && _currentValue != null;
+            return _currentKey is not null && _currentValue is not null;
         }
 
         private void Append(ref KeyValueAccumulator accumulator)
@@ -773,7 +762,8 @@ internal static class OpenIddictHelpers
                 accumulator.Append(_currentKey, _currentValue);
                 if (accumulator.ValueCount > ValueCountLimit)
                 {
-                    throw new InvalidDataException($"Form value count limit {ValueCountLimit} exceeded.");
+                    throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+                        $"Form value count limit {ValueCountLimit} exceeded."));
                 }
             }
         }
@@ -789,7 +779,7 @@ internal static class OpenIddictHelpers
 
         public void Append(string key, string value)
         {
-            if (_accumulator == null)
+            if (_accumulator is null)
             {
                 _accumulator = new Dictionary<string, StringValues>(StringComparer.OrdinalIgnoreCase);
             }
@@ -797,11 +787,11 @@ internal static class OpenIddictHelpers
             StringValues values;
             if (_accumulator.TryGetValue(key, out values))
             {
-                if (values.Count == 0)
+                if (values.Count is 0)
                 {
                     _expandingAccumulator[key].Add(value);
                 }
-                else if (values.Count == 1)
+                else if (values.Count is 1)
                 {
                     _accumulator[key] = new string[] { values[0]!, value };
                 }
@@ -809,7 +799,7 @@ internal static class OpenIddictHelpers
                 {
                     _accumulator[key] = default(StringValues);
 
-                    if (_expandingAccumulator == null)
+                    if (_expandingAccumulator is null)
                     {
                         _expandingAccumulator = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                     }
@@ -838,7 +828,7 @@ internal static class OpenIddictHelpers
 
         public Dictionary<string, StringValues> GetResults()
         {
-            if (_expandingAccumulator != null)
+            if (_expandingAccumulator is not null)
             {
                 foreach (var entry in _expandingAccumulator)
                 {

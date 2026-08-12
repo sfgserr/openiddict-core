@@ -23,7 +23,7 @@ namespace OpenIddict.Core;
 /// Applications that do not want to depend on a specific entity type can use the non-generic
 /// <see cref="IOpenIddictScopeManager"/> instead, for which the actual entity type is resolved at runtime.
 /// </remarks>
-/// <typeparam name="TScope">The type of the Scope entity.</typeparam>
+/// <typeparam name="TScope">The type of the scope entity.</typeparam>
 public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TScope : class
 {
     /// <summary>
@@ -70,7 +70,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the number of scopes in the database.
     /// </returns>
     public virtual ValueTask<long> CountAsync(CancellationToken cancellationToken = default)
@@ -83,7 +83,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="query">The query to execute.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the number of scopes that match the specified query.
     /// </returns>
     public virtual ValueTask<long> CountAsync<TResult>(
@@ -103,7 +103,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="state">The optional state.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the number of scopes that match the specified query.
     /// </returns>
     public virtual ValueTask<long> CountAsync<TState, TResult>(
@@ -128,10 +128,10 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
         ArgumentNullException.ThrowIfNull(scope);
 
         var results = await GetValidationResultsAsync(scope, cancellationToken);
-        if (results.Any(result => result != ValidationResult.Success))
+        if (results.Any(static result => result != ValidationResult.Success))
         {
             var builder = new StringBuilder();
-            builder.AppendLine(SR.GetResourceString(SR.ID0222));
+            builder.AppendLine(SR.GetResourceString(SR.ID0207));
             builder.AppendLine();
 
             foreach (var result in results)
@@ -169,15 +169,15 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="descriptor">The scope descriptor.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation, whose result returns the scope.
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation, whose result returns the scope.
     /// </returns>
     public virtual async ValueTask<TScope> CreateAsync(
         OpenIddictScopeDescriptor descriptor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        var scope = await Store.InstantiateAsync(cancellationToken) ??
-            throw new InvalidOperationException(SR.GetResourceString(SR.ID0223));
+        var scope = await Store.InstantiateAsync(cancellationToken)
+            ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0208));
 
         await PopulateAsync(scope, descriptor, cancellationToken);
         await CreateAsync(scope, cancellationToken);
@@ -211,16 +211,16 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="identifier">The unique identifier associated with the scope.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the scope corresponding to the identifier.
     /// </returns>
     public virtual async ValueTask<TScope?> FindByIdAsync(string identifier, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(identifier);
 
-        var scope = Options.CurrentValue.DisableEntityCaching ?
-            await Store.FindByIdAsync(identifier, cancellationToken) :
-            await Cache.FindByIdAsync(identifier, cancellationToken);
+        var scope = Options.CurrentValue.DisableEntityCaching
+            ? await Store.FindByIdAsync(identifier, cancellationToken)
+            : await Cache.FindByIdAsync(identifier, cancellationToken);
 
         if (scope is null)
         {
@@ -245,16 +245,16 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="name">The name associated with the scope.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the scope corresponding to the specified name.
     /// </returns>
     public virtual async ValueTask<TScope?> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        var scope = Options.CurrentValue.DisableEntityCaching ?
-            await Store.FindByNameAsync(name, cancellationToken) :
-            await Cache.FindByNameAsync(name, cancellationToken);
+        var scope = Options.CurrentValue.DisableEntityCaching
+            ? await Store.FindByNameAsync(name, cancellationToken)
+            : await Cache.FindByNameAsync(name, cancellationToken);
 
         if (scope is null)
         {
@@ -288,9 +288,9 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
             throw new ArgumentException(SR.GetResourceString(SR.ID0203), nameof(names));
         }
 
-        var scopes = Options.CurrentValue.DisableEntityCaching ?
-            Store.FindByNamesAsync(names, cancellationToken) :
-            Cache.FindByNamesAsync(names, cancellationToken);
+        var scopes = Options.CurrentValue.DisableEntityCaching
+            ? Store.FindByNamesAsync(names, cancellationToken)
+            : Cache.FindByNamesAsync(names, cancellationToken);
 
         if (Options.CurrentValue.DisableAdditionalFiltering)
         {
@@ -305,7 +305,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
 
         async IAsyncEnumerable<TScope> ExecuteAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await foreach (var scope in scopes)
+            await foreach (var scope in scopes.WithCancellation(cancellationToken))
             {
                 var name = await Store.GetNameAsync(scope, cancellationToken);
                 if (!string.IsNullOrEmpty(name) && names.Contains(name, StringComparer.Ordinal))
@@ -327,9 +327,9 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     {
         ArgumentException.ThrowIfNullOrEmpty(resource);
 
-        var scopes = Options.CurrentValue.DisableEntityCaching ?
-            Store.FindByResourceAsync(resource, cancellationToken) :
-            Cache.FindByResourceAsync(resource, cancellationToken);
+        var scopes = Options.CurrentValue.DisableEntityCaching
+            ? Store.FindByResourceAsync(resource, cancellationToken)
+            : Cache.FindByResourceAsync(resource, cancellationToken);
 
         if (Options.CurrentValue.DisableAdditionalFiltering)
         {
@@ -344,7 +344,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
 
         async IAsyncEnumerable<TScope> ExecuteAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await foreach (var scope in scopes)
+            await foreach (var scope in scopes.WithCancellation(cancellationToken))
             {
                 var resources = await Store.GetResourcesAsync(scope, cancellationToken);
                 if (resources.Contains(resource, StringComparer.Ordinal))
@@ -362,7 +362,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="query">The query to execute.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the first element returned when executing the query.
     /// </returns>
     public virtual ValueTask<TResult?> GetAsync<TResult>(
@@ -382,7 +382,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     /// <param name="state">The optional state.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns the first element returned when executing the query.
     /// </returns>
     public virtual ValueTask<TResult?> GetAsync<TState, TResult>(
@@ -424,13 +424,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        var descriptions = await Store.GetDescriptionsAsync(scope, cancellationToken);
-        if (descriptions is not { Count: > 0 })
-        {
-            return ImmutableDictionary.Create<CultureInfo, string>();
-        }
-
-        return descriptions;
+        return await Store.GetDescriptionsAsync(scope, cancellationToken) is { IsEmpty: false } descriptions ? descriptions : [];
     }
 
     /// <summary>
@@ -463,13 +457,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        var names = await Store.GetDisplayNamesAsync(scope, cancellationToken);
-        if (names is not { Count: > 0 })
-        {
-            return ImmutableDictionary.Create<CultureInfo, string>();
-        }
-
-        return names;
+        return await Store.GetDisplayNamesAsync(scope, cancellationToken) is { IsEmpty: false } names ? names : [];
     }
 
     /// <summary>
@@ -789,10 +777,10 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
         ArgumentNullException.ThrowIfNull(scope);
 
         var results = await GetValidationResultsAsync(scope, cancellationToken);
-        if (results.Any(result => result != ValidationResult.Success))
+        if (results.Any(static result => result != ValidationResult.Success))
         {
             var builder = new StringBuilder();
-            builder.AppendLine(SR.GetResourceString(SR.ID0224));
+            builder.AppendLine(SR.GetResourceString(SR.ID0215));
             builder.AppendLine();
 
             foreach (var result in results)
@@ -870,7 +858,7 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
                 yield return new ValidationResult(SR.GetResourceString(SR.ID2044));
             }
 
-            else if (name.Contains(Separators.Space[0]))
+            else if (name.Contains(Separators.Space[0], StringComparison.Ordinal))
             {
                 yield return new ValidationResult(SR.GetResourceString(SR.ID2045));
             }
@@ -962,7 +950,9 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
 
     /// <inheritdoc/>
     ValueTask<string?> IOpenIddictScopeManager.GetLocalizedDescriptionAsync(object scope, CancellationToken cancellationToken)
+#pragma warning disable MA0011
         => GetLocalizedDescriptionAsync((TScope) scope, cancellationToken);
+#pragma warning restore MA0011
 
     /// <inheritdoc/>
     ValueTask<string?> IOpenIddictScopeManager.GetLocalizedDescriptionAsync(object scope, CultureInfo culture, CancellationToken cancellationToken)
@@ -970,7 +960,9 @@ public class OpenIddictScopeManager<TScope> : IOpenIddictScopeManager where TSco
 
     /// <inheritdoc/>
     ValueTask<string?> IOpenIddictScopeManager.GetLocalizedDisplayNameAsync(object scope, CancellationToken cancellationToken)
+#pragma warning disable MA0011
         => GetLocalizedDisplayNameAsync((TScope) scope, cancellationToken);
+#pragma warning restore MA0011
 
     /// <inheritdoc/>
     ValueTask<string?> IOpenIddictScopeManager.GetLocalizedDisplayNameAsync(object scope, CultureInfo culture, CancellationToken cancellationToken)

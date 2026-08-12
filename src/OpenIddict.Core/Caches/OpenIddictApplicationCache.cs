@@ -17,7 +17,7 @@ namespace OpenIddict.Core;
 /// <summary>
 /// Provides methods allowing to cache applications after retrieving them from the store.
 /// </summary>
-/// <typeparam name="TApplication">The type of the Application entity.</typeparam>
+/// <typeparam name="TApplication">The type of the application entity.</typeparam>
 public sealed class OpenIddictApplicationCache<TApplication> : IOpenIddictApplicationCache<TApplication>, IDisposable where TApplication : class
 {
     private readonly MemoryCache _cache;
@@ -274,8 +274,8 @@ public sealed class OpenIddictApplicationCache<TApplication> : IOpenIddictApplic
 
         if (application is not null)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(application, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(application, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = 1L;
@@ -297,8 +297,8 @@ public sealed class OpenIddictApplicationCache<TApplication> : IOpenIddictApplic
 
         foreach (var application in applications)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(application, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(application, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = applications.Length;
@@ -312,7 +312,7 @@ public sealed class OpenIddictApplicationCache<TApplication> : IOpenIddictApplic
     /// <param name="application">The application associated with the expiration signal.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns an expiration signal for the specified application.
     /// </returns>
     private async ValueTask<IChangeToken> CreateExpirationSignalAsync(TApplication application, CancellationToken cancellationToken)

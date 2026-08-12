@@ -7,7 +7,9 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Buffers.Text;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -18,6 +20,10 @@ using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using static OpenIddict.Abstractions.OpenIddictExceptions;
+
+#if !NET
+using Org.BouncyCastle.Crypto.Digests;
+#endif
 
 namespace OpenIddict.Client;
 
@@ -411,9 +417,9 @@ public static partial class OpenIddictClientHandlers
                         context.Issuer       is null && string.IsNullOrEmpty(context.ProviderName) &&
                         context.Options.Registrations.Count is not 1)
                     {
-                        throw context.Options.Registrations.Count is 0 ?
-                            new InvalidOperationException(SR.GetResourceString(SR.ID0304)) :
-                            new InvalidOperationException(SR.GetResourceString(SR.ID0355));
+                        throw context.Options.Registrations.Count is 0
+                            ? new InvalidOperationException(SR.GetResourceString(SR.ID0304))
+                            : new InvalidOperationException(SR.GetResourceString(SR.ID0355));
                     }
 
                     break;
@@ -519,8 +525,8 @@ public static partial class OpenIddictClientHandlers
                 {
                     context.Configuration = await context.Registration.ConfigurationManager
                         .GetConfigurationAsync(context.CancellationToken)
-                        .WaitAsync(context.CancellationToken) ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                        .WaitAsync(context.CancellationToken)
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
                 }
 
                 catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -707,13 +713,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectStateToken)
                 {
@@ -851,8 +857,8 @@ public static partial class OpenIddictClientHandlers
             }
 
             // Mark the token as redeemed to prevent future reuses.
-            var token = await _tokenManager.FindByIdAsync(identifier);
-            if (token is not null && !await _tokenManager.TryRedeemAsync(token))
+            var token = await _tokenManager.FindByIdAsync(identifier, context.CancellationToken);
+            if (token is not null && !await _tokenManager.TryRedeemAsync(token, context.CancellationToken))
             {
                 context.Reject(
                     error: Errors.InvalidToken,
@@ -1142,8 +1148,8 @@ public static partial class OpenIddictClientHandlers
                     // Resolve and attach the server configuration to the context.
                     context.Configuration = await context.Registration.ConfigurationManager
                         .GetConfigurationAsync(context.CancellationToken)
-                        .WaitAsync(context.CancellationToken) ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                        .WaitAsync(context.CancellationToken)
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
                 }
 
                 catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -1515,8 +1521,9 @@ public static partial class OpenIddictClientHandlers
             context.FrontchannelAccessTokenExpirationDate = context.EndpointType switch
             {
                 OpenIddictClientEndpointType.Redirection when context.ExtractFrontchannelAccessToken
-                    => (long?) context.Request[Parameters.ExpiresIn] is long value ?
-                        context.Options.TimeProvider.GetUtcNow().AddSeconds(value) : null,
+                    => (long?) context.Request[Parameters.ExpiresIn] is long value
+                        ? context.Options.TimeProvider.GetUtcNow().AddSeconds(value)
+                        : null,
 
                 _ => null
             };
@@ -1619,13 +1626,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectFrontchannelIdentityToken)
                 {
@@ -1667,8 +1674,8 @@ public static partial class OpenIddictClientHandlers
             Debug.Assert(context.FrontchannelIdentityTokenPrincipal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
             foreach (var group in context.FrontchannelIdentityTokenPrincipal.Claims
-                .GroupBy(static claim => claim.Type)
-                .ToDictionary(static group => group.Key, group => group.ToList())
+                .GroupBy(static claim => claim.Type, StringComparer.Ordinal)
+                .ToDictionary(static group => group.Key, group => group.ToList(), StringComparer.Ordinal)
                 .Where(static group => !ValidateClaimGroup(group.Key, group.Value)))
             {
                 context.Reject(
@@ -1745,7 +1752,8 @@ public static partial class OpenIddictClientHandlers
             {
                 // The following claims MUST be represented as unique strings.
                 Claims.AuthenticationContextReference or Claims.AuthorizedParty or
-                Claims.Issuer                         or Claims.Nonce           or Claims.Subject
+                Claims.Issuer                         or Claims.Nonce           or
+                Claims.SessionId                      or Claims.Subject
                     => values is [{ ValueType: ClaimValueTypes.String }],
 
                 // The following claims MUST be represented as unique strings or array of strings.
@@ -1798,7 +1806,8 @@ public static partial class OpenIddictClientHandlers
             // In any case, the client identifier of the application MUST be included in the audiences.
             // See https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation for more information.
             var audiences = context.FrontchannelIdentityTokenPrincipal.GetClaims(Claims.Audience);
-            if (!string.IsNullOrEmpty(context.Registration.ClientId) && !audiences.Contains(context.Registration.ClientId))
+            if (!string.IsNullOrEmpty(context.Registration.ClientId) &&
+                !audiences.Contains(context.Registration.ClientId, StringComparer.Ordinal))
             {
                 context.Reject(
                     error: Errors.InvalidRequest,
@@ -1937,7 +1946,7 @@ public static partial class OpenIddictClientHandlers
                 case { FrontchannelIdentityTokenNonce: string left, StateTokenNonce: string right } when
                     !CryptographicOperations.FixedTimeEquals(
                         left:  MemoryMarshal.AsBytes(left.AsSpan()), // The nonce in the identity token is already hashed.
-                        right: MemoryMarshal.AsBytes(Base64UrlEncoder.Encode(
+                        right: MemoryMarshal.AsBytes(Base64Url.EncodeToString(
                             SHA256.HashData(Encoding.UTF8.GetBytes(right))).AsSpan())):
                     context.Logger.LogWarning(6210, SR.GetResourceString(SR.ID6210));
 
@@ -2057,12 +2066,33 @@ public static partial class OpenIddictClientHandlers
                     SecurityAlgorithms.RsaSha512   or SecurityAlgorithms.RsaSsaPssSha512
                         => SHA512.HashData(Encoding.ASCII.GetBytes(token)),
 
+                    // Note: while not officially adopted yet, the OpenID Connect Working Group has proposed to use SHAKE256
+                    // for ML-DSA-based algorithms. See https://bitbucket.org/openid/connect/issues/1125 for more information.
+                    SecurityAlgorithms.MlDsa44 or SecurityAlgorithms.MlDsa65 or SecurityAlgorithms.MlDsa87
+                        => GetShake256Digest(Encoding.ASCII.GetBytes(token), length: 64),
+
                     _ => throw new InvalidOperationException(SR.GetResourceString(SR.ID0293))
                 };
 
                 // Warning: only the left-most half of the access token and authorization code digest is used.
                 // See http://openid.net/specs/openid-connect-core-1_0.html#CodeIDToken for more information.
-                return Base64UrlEncoder.Encode(hash, 0, hash.Length / 2).AsSpan();
+                return Base64Url.EncodeToString(hash.AsSpan(0, hash.Length / 2)).AsSpan();
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            static byte[] GetShake256Digest(byte[] data, int length)
+            {
+#if NET
+                return Shake256.HashData(data, length);
+#else
+                var digest = new ShakeDigest(256);
+                digest.BlockUpdate(data, 0, data.Length);
+
+                var hash = new byte[length];
+                digest.DoFinal(hash, 0);
+
+                return hash;
+#endif
             }
 
             static bool ValidateTokenHash(string algorithm, string token, string hash) =>
@@ -2121,13 +2151,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectFrontchannelAccessToken)
                 {
@@ -2192,13 +2222,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectAuthorizationCode)
                 {
@@ -2668,7 +2698,7 @@ public static partial class OpenIddictClientHandlers
                     // Note: the final OAuth 2.0 specification requires using a space as the scope separator.
                     // Clients that need to deal with older or non-compliant implementations can register
                     // a custom handler to use a different separator (typically, a comma).
-                    context.TokenRequest.Scope = string.Join(" ", context.Scopes);
+                    context.TokenRequest.Scope = string.Join(Separators.Space[0], context.Scopes);
                 }
             }
 
@@ -2798,7 +2828,7 @@ public static partial class OpenIddictClientHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Options.ClientAssertionLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -2879,13 +2909,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,
@@ -3334,13 +3364,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectBackchannelIdentityToken)
                 {
@@ -3382,8 +3412,8 @@ public static partial class OpenIddictClientHandlers
             Debug.Assert(context.BackchannelIdentityTokenPrincipal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
             foreach (var group in context.BackchannelIdentityTokenPrincipal.Claims
-                .GroupBy(static claim => claim.Type)
-                .ToDictionary(static group => group.Key, group => group.ToList())
+                .GroupBy(static claim => claim.Type, StringComparer.Ordinal)
+                .ToDictionary(static group => group.Key, group => group.ToList(), StringComparer.Ordinal)
                 .Where(static group => !ValidateClaimGroup(group.Key, group.Value)))
             {
                 context.Reject(
@@ -3460,7 +3490,8 @@ public static partial class OpenIddictClientHandlers
             {
                 // The following claims MUST be represented as unique strings.
                 Claims.AuthenticationContextReference or Claims.AuthorizedParty or
-                Claims.Issuer                         or Claims.Nonce           or Claims.Subject
+                Claims.Issuer                         or Claims.Nonce           or
+                Claims.SessionId                      or Claims.Subject
                     => values is [{ ValueType: ClaimValueTypes.String }],
 
                 // The following claims MUST be represented as unique strings or array of strings.
@@ -3513,7 +3544,8 @@ public static partial class OpenIddictClientHandlers
             // In any case, the client identifier of the application MUST be included in the audiences.
             // See https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation for more information.
             var audiences = context.BackchannelIdentityTokenPrincipal.GetClaims(Claims.Audience);
-            if (!string.IsNullOrEmpty(context.Registration.ClientId) && !audiences.Contains(context.Registration.ClientId))
+            if (!string.IsNullOrEmpty(context.Registration.ClientId) &&
+                !audiences.Contains(context.Registration.ClientId, StringComparer.Ordinal))
             {
                 context.Reject(
                     error: Errors.InvalidRequest,
@@ -3652,7 +3684,7 @@ public static partial class OpenIddictClientHandlers
                 case { BackchannelIdentityTokenNonce: string left, StateTokenNonce: string right } when
                     !CryptographicOperations.FixedTimeEquals(
                         left:  MemoryMarshal.AsBytes(left.AsSpan()), // The nonce in the identity token is already hashed.
-                        right: MemoryMarshal.AsBytes(Base64UrlEncoder.Encode(
+                        right: MemoryMarshal.AsBytes(Base64Url.EncodeToString(
                             SHA256.HashData(Encoding.UTF8.GetBytes(right))).AsSpan())):
                     context.Logger.LogWarning(6211, SR.GetResourceString(SR.ID6211));
 
@@ -3736,12 +3768,33 @@ public static partial class OpenIddictClientHandlers
                     SecurityAlgorithms.RsaSha512   or SecurityAlgorithms.RsaSsaPssSha512
                         => SHA512.HashData(Encoding.ASCII.GetBytes(token)),
 
+                    // Note: while not officially adopted yet, the OpenID Connect Working Group has proposed to use SHAKE256
+                    // for ML-DSA-based algorithms. See https://bitbucket.org/openid/connect/issues/1125 for more information.
+                    SecurityAlgorithms.MlDsa44 or SecurityAlgorithms.MlDsa65 or SecurityAlgorithms.MlDsa87
+                        => GetShake256Digest(Encoding.ASCII.GetBytes(token), length: 64),
+
                     _ => throw new InvalidOperationException(SR.GetResourceString(SR.ID0295))
                 };
 
                 // Warning: only the left-most half of the access token and authorization code digest is used.
                 // See http://openid.net/specs/openid-connect-core-1_0.html#CodeIDToken for more information.
-                return Base64UrlEncoder.Encode(hash, 0, hash.Length / 2).AsSpan();
+                return Base64Url.EncodeToString(hash.AsSpan(0, hash.Length / 2)).AsSpan();
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            static byte[] GetShake256Digest(byte[] data, int length)
+            {
+#if NET
+                return Shake256.HashData(data, length);
+#else
+                var digest = new ShakeDigest(256);
+                digest.BlockUpdate(data, 0, data.Length);
+
+                var hash = new byte[length];
+                digest.DoFinal(hash, 0);
+
+                return hash;
+#endif
             }
 
             static bool ValidateTokenHash(string algorithm, string token, string hash) =>
@@ -3800,13 +3853,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectBackchannelAccessToken)
                 {
@@ -3869,13 +3922,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectIssuedToken)
                 {
@@ -3940,13 +3993,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectRefreshToken)
                 {
@@ -4219,8 +4272,8 @@ public static partial class OpenIddictClientHandlers
                 // the backchannel access token (retrieved from the token endpoint) is always preferred to the
                 // frontchannel access token if available, as it may grant a greater access to user's resources.
                 GrantTypes.AuthorizationCode or GrantTypes.Implicit
-                    => context.BackchannelAccessToken ?? context.FrontchannelAccessToken ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0162)),
+                    => context.BackchannelAccessToken ?? context.FrontchannelAccessToken
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0162)),
 
                 // For the OAuth 2.0 token exchange flow, use the issued token as the access token,
                 // but only if the "issued_token_type" node indicates it's an access token.
@@ -4442,13 +4495,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 if (context.RejectUserInfoToken)
                 {
@@ -4491,8 +4544,8 @@ public static partial class OpenIddictClientHandlers
             Debug.Assert(context.UserInfoTokenPrincipal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
             foreach (var group in context.UserInfoTokenPrincipal.Claims
-                .GroupBy(static claim => claim.Type)
-                .ToDictionary(static group => group.Key, group => group.ToList())
+                .GroupBy(static claim => claim.Type, StringComparer.Ordinal)
+                .ToDictionary(static group => group.Key, group => group.ToList(), StringComparer.Ordinal)
                 .Where(static group => !ValidateClaimGroup(group.Key, group.Value)))
             {
                 context.Reject(
@@ -4639,12 +4692,12 @@ public static partial class OpenIddictClientHandlers
                 //
                 // Note: if WS-Federation claim mapping was not disabled, the resulting identity
                 // will use the default WS-Federation claims as the name/role claim types.
-                var identity = context.Options.DisableWebServicesFederationClaimMapping ?
-                    new ClaimsIdentity(
+                var identity = context.Options.DisableWebServicesFederationClaimMapping
+                    ? new ClaimsIdentity(
                         context.Registration.TokenValidationParameters.AuthenticationType,
                         context.Registration.TokenValidationParameters.NameClaimType,
-                        context.Registration.TokenValidationParameters.RoleClaimType) :
-                    new ClaimsIdentity(
+                        context.Registration.TokenValidationParameters.RoleClaimType)
+                    : new ClaimsIdentity(
                         context.Registration.TokenValidationParameters.AuthenticationType,
                         nameType: ClaimTypes.Name,
                         roleType: ClaimTypes.Role);
@@ -4721,9 +4774,9 @@ public static partial class OpenIddictClientHandlers
                 return ValueTask.CompletedTask;
             }
 
-            var issuer = context.Registration.ClaimsIssuer ??
-                         context.Registration.ProviderName ??
-                         context.Registration.Issuer.AbsoluteUri;
+            var issuer = context.Registration.ClaimsIssuer
+                         ?? context.Registration.ProviderName
+                         ?? context.Registration.Issuer.AbsoluteUri;
 
             MapClaim(ClaimTypes.Email,          ClaimValueTypes.String, [Claims.Email]);
             MapClaim(ClaimTypes.Gender,         ClaimValueTypes.String, [Claims.Gender]);
@@ -4835,9 +4888,9 @@ public static partial class OpenIddictClientHandlers
                 context.Issuer       is null && string.IsNullOrEmpty(context.ProviderName) &&
                 context.Options.Registrations.Count is not 1)
             {
-                throw context.Options.Registrations.Count is 0 ?
-                    new InvalidOperationException(SR.GetResourceString(SR.ID0304)) :
-                    new InvalidOperationException(SR.GetResourceString(SR.ID0305));
+                throw context.Options.Registrations.Count is 0
+                    ? new InvalidOperationException(SR.GetResourceString(SR.ID0304))
+                    : new InvalidOperationException(SR.GetResourceString(SR.ID0305));
             }
 
             if (context.Principal is not { Identity: ClaimsIdentity })
@@ -4856,8 +4909,8 @@ public static partial class OpenIddictClientHandlers
             }
 
             foreach (var group in context.Principal.Claims
-                .GroupBy(static claim => claim.Type)
-                .ToDictionary(static group => group.Key, static group => group.ToList())
+                .GroupBy(static claim => claim.Type, StringComparer.Ordinal)
+                .ToDictionary(static group => group.Key, static group => group.ToList(), StringComparer.Ordinal)
                 .Where(static group => !ValidateClaimGroup(group.Key, group.Value)))
             {
                 throw new InvalidOperationException(SR.FormatID0424(group.Key));
@@ -4964,8 +5017,8 @@ public static partial class OpenIddictClientHandlers
                 {
                     context.Configuration = await context.Registration.ConfigurationManager
                         .GetConfigurationAsync(context.CancellationToken)
-                        .WaitAsync(context.CancellationToken) ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                        .WaitAsync(context.CancellationToken)
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
                 }
 
                 catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -5434,7 +5487,7 @@ public static partial class OpenIddictClientHandlers
 
             // Generate a new crypto-secure random identifier that will
             // be used as the non-guessable part of the state token.
-            context.RequestForgeryProtection = Base64UrlEncoder.Encode(
+            context.RequestForgeryProtection = Base64Url.EncodeToString(
                 RandomNumberGenerator.GetBytes(count: 256 / 8));
 
             return ValueTask.CompletedTask;
@@ -5472,7 +5525,7 @@ public static partial class OpenIddictClientHandlers
             // attached to the authorization request so that the identity provider can bind
             // the issued identity tokens to the generated value, which helps detect token
             // replays (and authorization code injection attacks when PKCE is not available).
-            context.Nonce = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(count: 256 / 8));
+            context.Nonce = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(count: 256 / 8));
 
             return ValueTask.CompletedTask;
         }
@@ -5551,7 +5604,7 @@ public static partial class OpenIddictClientHandlers
             }
 
             // Generate a new crypto-secure random identifier that will be used as the code challenge.
-            context.CodeVerifier = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(count: 256 / 8));
+            context.CodeVerifier = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(count: 256 / 8));
 
             context.CodeChallenge = context.CodeChallengeMethod switch
             {
@@ -5562,7 +5615,7 @@ public static partial class OpenIddictClientHandlers
                 //
                 // Note: ASCII is deliberately used here, as it's the encoding required by the specification.
                 // For more information, see https://datatracker.ietf.org/doc/html/rfc7636#section-4.2.
-                CodeChallengeMethods.Sha256 => Base64UrlEncoder.Encode(
+                CodeChallengeMethods.Sha256 => Base64Url.EncodeToString(
                     SHA256.HashData(Encoding.ASCII.GetBytes(context.CodeVerifier))),
 
                 _ => throw new InvalidOperationException(SR.GetResourceString(SR.ID0045))
@@ -5688,7 +5741,7 @@ public static partial class OpenIddictClientHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Principal.GetStateTokenLifetime() ?? context.Options.StateTokenLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -5797,13 +5850,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,
@@ -5861,7 +5914,7 @@ public static partial class OpenIddictClientHandlers
                 // Note: the final OAuth 2.0 specification requires using a space as the scope separator.
                 // Clients that need to deal with older or non-compliant implementations can register
                 // a custom handler to use a different separator (typically, a comma).
-                context.Request.Scope = string.Join(" ", context.Scopes);
+                context.Request.Scope = string.Join(Separators.Space[0], context.Scopes);
             }
 
             // If a nonce was generated and the request is an OpenID Connect request where an authorization
@@ -5874,7 +5927,7 @@ public static partial class OpenIddictClientHandlers
                 context.ResponseType?.Split(Separators.Space) is IList<string> types &&
                 (types.Contains(ResponseTypes.Code) || types.Contains(ResponseTypes.IdToken)))
             {
-                context.Request.Nonce = Base64UrlEncoder.Encode(
+                context.Request.Nonce = Base64Url.EncodeToString(
                     SHA256.HashData(Encoding.UTF8.GetBytes(context.Nonce)));
             }
 
@@ -6224,7 +6277,7 @@ public static partial class OpenIddictClientHandlers
                 // Note: the final OAuth 2.0 specification requires using a space as the scope separator.
                 // Clients that need to deal with older or non-compliant implementations can register
                 // a custom handler to use a different separator (typically, a comma).
-                context.DeviceAuthorizationRequest.Scope = string.Join(" ", context.Scopes);
+                context.DeviceAuthorizationRequest.Scope = string.Join(Separators.Space[0], context.Scopes);
             }
 
             return ValueTask.CompletedTask;
@@ -6619,7 +6672,7 @@ public static partial class OpenIddictClientHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Options.ClientAssertionLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -6686,13 +6739,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,
@@ -7293,9 +7346,9 @@ public static partial class OpenIddictClientHandlers
                 context.Issuer       is null && string.IsNullOrEmpty(context.ProviderName) &&
                 context.Options.Registrations.Count is not 1)
             {
-                throw context.Options.Registrations.Count is 0 ?
-                    new InvalidOperationException(SR.GetResourceString(SR.ID0304)) :
-                    new InvalidOperationException(SR.GetResourceString(SR.ID0305));
+                throw context.Options.Registrations.Count is 0
+                    ? new InvalidOperationException(SR.GetResourceString(SR.ID0304))
+                    : new InvalidOperationException(SR.GetResourceString(SR.ID0305));
             }
 
             return ValueTask.CompletedTask;
@@ -7377,8 +7430,8 @@ public static partial class OpenIddictClientHandlers
                 {
                     context.Configuration = await context.Registration.ConfigurationManager
                         .GetConfigurationAsync(context.CancellationToken)
-                        .WaitAsync(context.CancellationToken) ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                        .WaitAsync(context.CancellationToken)
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
                 }
 
                 catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -7782,7 +7835,7 @@ public static partial class OpenIddictClientHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Options.ClientAssertionLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -7849,13 +7902,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,
@@ -8033,9 +8086,9 @@ public static partial class OpenIddictClientHandlers
                 return ValueTask.CompletedTask;
             }
 
-            var issuer = context.Registration.ClaimsIssuer ??
-                         context.Registration.ProviderName ??
-                         context.Registration.Issuer.AbsoluteUri;
+            var issuer = context.Registration.ClaimsIssuer
+                         ?? context.Registration.ProviderName
+                         ?? context.Registration.Issuer.AbsoluteUri;
 
             MapClaim(ClaimTypes.Name,           ClaimValueTypes.String, [Claims.Username]);
             MapClaim(ClaimTypes.NameIdentifier, ClaimValueTypes.String, [Claims.Subject]);
@@ -8182,8 +8235,8 @@ public static partial class OpenIddictClientHandlers
                 {
                     context.Configuration = await context.Registration.ConfigurationManager
                         .GetConfigurationAsync(context.CancellationToken)
-                        .WaitAsync(context.CancellationToken) ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                        .WaitAsync(context.CancellationToken)
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
                 }
 
                 catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -8587,7 +8640,7 @@ public static partial class OpenIddictClientHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Options.ClientAssertionLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -8654,13 +8707,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,
@@ -8836,9 +8889,9 @@ public static partial class OpenIddictClientHandlers
                 context.Issuer       is null && string.IsNullOrEmpty(context.ProviderName) &&
                 context.Options.Registrations.Count is not 1)
             {
-                throw context.Options.Registrations.Count is 0 ?
-                    new InvalidOperationException(SR.GetResourceString(SR.ID0304)) :
-                    new InvalidOperationException(SR.GetResourceString(SR.ID0305));
+                throw context.Options.Registrations.Count is 0
+                    ? new InvalidOperationException(SR.GetResourceString(SR.ID0304))
+                    : new InvalidOperationException(SR.GetResourceString(SR.ID0305));
             }
 
             if (context.Principal is not { Identity: ClaimsIdentity })
@@ -8857,8 +8910,8 @@ public static partial class OpenIddictClientHandlers
             }
 
             foreach (var group in context.Principal.Claims
-                .GroupBy(static claim => claim.Type)
-                .ToDictionary(static group => group.Key, static group => group.ToList())
+                .GroupBy(static claim => claim.Type, StringComparer.Ordinal)
+                .ToDictionary(static group => group.Key, static group => group.ToList(), StringComparer.Ordinal)
                 .Where(static group => !ValidateClaimGroup(group.Key, group.Value)))
             {
                 throw new InvalidOperationException(SR.FormatID0424(group.Key));
@@ -8965,8 +9018,8 @@ public static partial class OpenIddictClientHandlers
                 {
                     context.Configuration = await context.Registration.ConfigurationManager
                         .GetConfigurationAsync(context.CancellationToken)
-                        .WaitAsync(context.CancellationToken) ??
-                        throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
+                        .WaitAsync(context.CancellationToken)
+                        ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0140));
                 }
 
                 catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception) &&
@@ -9133,7 +9186,7 @@ public static partial class OpenIddictClientHandlers
 
             // Generate a new crypto-secure random identifier that will
             // be used as the non-guessable part of the state token.
-            context.RequestForgeryProtection = Base64UrlEncoder.Encode(
+            context.RequestForgeryProtection = Base64Url.EncodeToString(
                 RandomNumberGenerator.GetBytes(count: 256 / 8));
 
             return ValueTask.CompletedTask;
@@ -9160,7 +9213,7 @@ public static partial class OpenIddictClientHandlers
             ArgumentNullException.ThrowIfNull(context);
 
             // Generate a new crypto-secure random identifier that will be used as the nonce.
-            context.Nonce = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(count: 256 / 8));
+            context.Nonce = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(count: 256 / 8));
 
             return ValueTask.CompletedTask;
         }
@@ -9219,7 +9272,7 @@ public static partial class OpenIddictClientHandlers
             principal.SetCreationDate(context.Options.TimeProvider.GetUtcNow());
 
             var lifetime = context.Principal.GetStateTokenLifetime() ?? context.Options.StateTokenLifetime;
-            if (lifetime.HasValue)
+            if (lifetime is not null)
             {
                 principal.SetExpirationDate(principal.GetCreationDate() + lifetime.Value);
             }
@@ -9307,13 +9360,13 @@ public static partial class OpenIddictClientHandlers
                 return;
             }
 
-            else if (notification.IsRequestSkipped)
+            if (notification.IsRequestSkipped)
             {
                 context.SkipRequest();
                 return;
             }
 
-            else if (notification.IsRejected)
+            if (notification.IsRejected)
             {
                 context.Reject(
                     error: notification.Error ?? Errors.InvalidRequest,

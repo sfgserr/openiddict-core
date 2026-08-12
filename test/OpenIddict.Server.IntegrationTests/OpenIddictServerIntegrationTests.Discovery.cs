@@ -4,6 +4,7 @@
  * the license and the contributors participating to this project.
  */
 
+using System.Buffers.Text;
 using System.Collections.Immutable;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -435,9 +436,9 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(methods);
         Assert.Equal(3, methods.Value.Length);
-        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods);
-        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods);
-        Assert.Contains("custom", methods);
+        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods, StringComparer.Ordinal);
+        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods, StringComparer.Ordinal);
+        Assert.Contains("custom", methods, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -477,9 +478,9 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(methods);
         Assert.Equal(3, methods.Value.Length);
-        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods);
-        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods);
-        Assert.Contains("custom", methods);
+        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods, StringComparer.Ordinal);
+        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods, StringComparer.Ordinal);
+        Assert.Contains("custom", methods, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -519,9 +520,9 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(methods);
         Assert.Equal(3, methods.Value.Length);
-        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods);
-        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods);
-        Assert.Contains("custom", methods);
+        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods, StringComparer.Ordinal);
+        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods, StringComparer.Ordinal);
+        Assert.Contains("custom", methods, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -562,9 +563,9 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(methods);
         Assert.Equal(3, methods.Value.Length);
-        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods);
-        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods);
-        Assert.Contains("custom", methods);
+        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods, StringComparer.Ordinal);
+        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods, StringComparer.Ordinal);
+        Assert.Contains("custom", methods, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -604,9 +605,9 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(methods);
         Assert.Equal(3, methods.Value.Length);
-        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods);
-        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods);
-        Assert.Contains("custom", methods);
+        Assert.Contains(ClientAuthenticationMethods.ClientSecretPost, methods, StringComparer.Ordinal);
+        Assert.Contains(ClientAuthenticationMethods.PrivateKeyJwt, methods, StringComparer.Ordinal);
+        Assert.Contains("custom", methods, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -634,8 +635,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(types);
         Assert.Equal(2, types.Value.Length);
-        Assert.Contains(GrantTypes.AuthorizationCode, types);
-        Assert.Contains(GrantTypes.Password, types);
+        Assert.Contains(GrantTypes.AuthorizationCode, types, StringComparer.Ordinal);
+        Assert.Contains(GrantTypes.Password, types, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -676,8 +677,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(methods);
         Assert.Equal(2, methods.Value.Length);
-        Assert.Contains(CodeChallengeMethods.Sha256, methods);
-        Assert.Contains(CodeChallengeMethods.Plain, methods);
+        Assert.Contains(CodeChallengeMethods.Sha256, methods, StringComparer.Ordinal);
+        Assert.Contains(CodeChallengeMethods.Plain, methods, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -718,8 +719,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(modes);
         Assert.Equal(2, modes.Value.Length);
-        Assert.Contains(ResponseModes.FormPost, modes);
-        Assert.Contains(ResponseModes.Fragment, modes);
+        Assert.Contains(ResponseModes.FormPost, modes, StringComparer.Ordinal);
+        Assert.Contains(ResponseModes.Fragment, modes, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -760,8 +761,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(types);
         Assert.Equal(2, types.Value.Length);
-        Assert.Contains(ResponseTypes.Code, types);
-        Assert.Contains(ResponseTypes.Code + ' ' + ResponseTypes.IdToken, types);
+        Assert.Contains(ResponseTypes.Code, types, StringComparer.Ordinal);
+        Assert.Contains(ResponseTypes.Code + ' ' + ResponseTypes.IdToken, types, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -802,8 +803,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(scopes);
         Assert.Equal(2, scopes.Value.Length);
-        Assert.Contains(Scopes.OpenId, scopes);
-        Assert.Contains("custom_scope", scopes);
+        Assert.Contains(Scopes.OpenId, scopes, StringComparer.Ordinal);
+        Assert.Contains("custom_scope", scopes, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -844,8 +845,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(claims);
         Assert.Equal(2, claims.Value.Length);
-        Assert.Contains(Claims.Profile, claims);
-        Assert.Contains("custom_claim", claims);
+        Assert.Contains(Claims.Profile, claims, StringComparer.Ordinal);
+        Assert.Contains("custom_claim", claims, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -900,6 +901,9 @@ public abstract partial class OpenIddictServerIntegrationTests
     [InlineData(Algorithms.EcdsaSha256)]
     [InlineData(Algorithms.EcdsaSha384)]
     [InlineData(Algorithms.EcdsaSha512)]
+    [InlineData(SecurityAlgorithms.MlDsa44)]
+    [InlineData(SecurityAlgorithms.MlDsa65)]
+    [InlineData(SecurityAlgorithms.MlDsa87)]
     public async Task HandleConfigurationRequest_SigningAlgorithmsAreCorrectlyReturned(string algorithm)
     {
         // Arrange
@@ -919,7 +923,7 @@ public abstract partial class OpenIddictServerIntegrationTests
 
         // Assert
         Assert.NotNull(algorithms);
-        Assert.Contains(algorithm, algorithms);
+        Assert.Contains(algorithm, algorithms, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -942,7 +946,7 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.NotNull(algorithms);
         Assert.Single(algorithms);
-        Assert.Contains(Algorithms.RsaSha256, algorithms);
+        Assert.Contains(Algorithms.RsaSha256, algorithms, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -1483,8 +1487,8 @@ public abstract partial class OpenIddictServerIntegrationTests
         Assert.Null(key?[JsonWebKeyParameterNames.P]);
         Assert.Null(key?[JsonWebKeyParameterNames.Q]);
 
-        Assert.Equal(parameters.Exponent, Base64UrlEncoder.DecodeBytes((string?) key?[JsonWebKeyParameterNames.E]));
-        Assert.Equal(parameters.Modulus, Base64UrlEncoder.DecodeBytes((string?) key?[JsonWebKeyParameterNames.N]));
+        Assert.Equal(parameters.Exponent, Base64Url.DecodeFromChars((string?) key?[JsonWebKeyParameterNames.E]));
+        Assert.Equal(parameters.Modulus, Base64Url.DecodeFromChars((string?) key?[JsonWebKeyParameterNames.N]));
     }
 
     [Theory]
@@ -1534,8 +1538,33 @@ public abstract partial class OpenIddictServerIntegrationTests
         // Assert
         Assert.Null(key?[JsonWebKeyParameterNames.D]);
 
-        Assert.Equal(parameters.Q.X, Base64UrlEncoder.DecodeBytes((string?) key?[JsonWebKeyParameterNames.X]));
-        Assert.Equal(parameters.Q.Y, Base64UrlEncoder.DecodeBytes((string?) key?[JsonWebKeyParameterNames.Y]));
+        Assert.Equal(parameters.Q.X, Base64Url.DecodeFromChars((string?) key?[JsonWebKeyParameterNames.X]));
+        Assert.Equal(parameters.Q.Y, Base64Url.DecodeFromChars((string?) key?[JsonWebKeyParameterNames.Y]));
+    }
+
+    [SkippableFact(typeof(PlatformNotSupportedException))]
+    public async Task HandleJsonWebKeySetRequest_MlDsaSecurityKeysAreCorrectlyExposed()
+    {
+        // Arrange
+        using var algorithm = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa44);
+        var blob = algorithm.ExportMLDsaPublicKey();
+
+        await using var server = await CreateServerAsync(options =>
+        {
+            options.Configure(options => options.SigningCredentials.Clear());
+            options.AddSigningKey(new MlDsaSecurityKey(algorithm));
+        });
+
+        await using var client = await server.CreateClientAsync();
+
+        // Act
+        var response = await client.GetAsync("/.well-known/jwks");
+        var key = response[Parameters.Keys]?[0];
+
+        // Assert
+        Assert.Equal(JsonWebAlgorithmsKeyTypes.Akp, (string?) key?[JsonWebKeyParameterNames.Kty]);
+        Assert.Equal(SecurityAlgorithms.MlDsa44, (string?) key?[JsonWebKeyParameterNames.Alg]);
+        Assert.Equal(blob, Base64Url.DecodeFromChars((string?) key?[JsonWebKeyParameterNames.Pub]));
     }
 
     [Fact]

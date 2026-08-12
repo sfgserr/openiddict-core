@@ -5,9 +5,11 @@
  */
 
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text;
@@ -18,7 +20,6 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.Net.Http.Headers;
 using Properties = OpenIddict.Client.AspNetCore.OpenIddictClientAspNetCoreConstants.Properties;
 
@@ -99,8 +100,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // OpenIddict supports both absolute and relative URIs for all its endpoints, but only absolute
             // URIs can be properly canonicalized by the BCL System.Uri class (e.g './path/../' is normalized
@@ -150,8 +151,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Don't require that transport security be used if the request is not handled by OpenIddict.
             if (context.EndpointType is not OpenIddictClientEndpointType.Unknown && !request.IsHttps)
@@ -192,8 +193,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Don't require that the request host be present if the request is not handled by OpenIddict.
             if (context.EndpointType is not OpenIddictClientEndpointType.Unknown && !request.Host.HasValue)
@@ -234,8 +235,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             if (HttpMethods.IsGet(request.Method))
             {
@@ -382,8 +383,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Resolve the nonce from the state token principal.
             var nonce = context.StateTokenPrincipal.GetClaim(Claims.Private.Nonce);
@@ -418,40 +419,9 @@ public static partial class OpenIddictClientAspNetCoreHandlers
                 return ValueTask.CompletedTask;
             }
 
-            try
-            {
-                // Extract the payload and validate the version marker.
-                var payload = Base64UrlEncoder.DecodeBytes(value);
-                if (payload.Length < (1 + sizeof(uint)) || payload[0] is not 0x01)
-                {
-                    context.Reject(
-                        error: Errors.InvalidRequest,
-                        description: SR.GetResourceString(SR.ID2163),
-                        uri: SR.FormatID8000(SR.ID2163));
-
-                    return ValueTask.CompletedTask;
-                }
-
-                // Extract the length of the request forgery protection.
-                var length = (int) BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(1, sizeof(uint)));
-                if (length is 0 || length != (payload.Length - (1 + sizeof(uint))))
-                {
-                    context.Reject(
-                        error: Errors.InvalidRequest,
-                        description: SR.GetResourceString(SR.ID2163),
-                        uri: SR.FormatID8000(SR.ID2163));
-
-                    return ValueTask.CompletedTask;
-                }
-
-                // Note: since the correlation cookie is not protected against tampering, an unexpected
-                // value may be present in the cookie payload and this call may return a string whose
-                // length doesn't match the expected value. In any case, any tampering attempt will be
-                // detected when comparing the resolved value with the expected value stored in the state.
-                context.RequestForgeryProtection = Encoding.UTF8.GetString(payload, index: 5, length);
-            }
-
-            catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception))
+            // Try to extract the request forgery protection from the correlation cookie. If the value
+            // cannot be extracted, return a generic error indicating the cookie is invalid or malformed.
+            if (!TryGetRequestForgeryProtection(value, out string? result))
             {
                 context.Reject(
                     error: Errors.InvalidRequest,
@@ -461,12 +431,49 @@ public static partial class OpenIddictClientAspNetCoreHandlers
                 return ValueTask.CompletedTask;
             }
 
+            context.RequestForgeryProtection = result;
+
             // Return a response header asking the browser to delete the state cookie.
             //
             // Note: when deleting a cookie, the same options used when creating it MUST be specified.
             request.HttpContext.Response.Cookies.Delete(name, builder.Build(request.HttpContext));
 
             return ValueTask.CompletedTask;
+
+            static bool TryGetRequestForgeryProtection(ReadOnlySpan<char> input, [NotNullWhen(true)] out string? output)
+            {
+                try
+                {
+                    // Extract the payload and validate the version marker.
+                    var payload = Base64Url.DecodeFromChars(input);
+                    if (payload.Length is < (1 + sizeof(uint)) || payload[0] is not 0x01)
+                    {
+                        output = null;
+                        return false;
+                    }
+
+                    // Extract the length of the request forgery protection.
+                    var length = (int) BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(1, sizeof(uint)));
+                    if (length != (payload.Length - (1 + sizeof(uint))))
+                    {
+                        output = null;
+                        return false;
+                    }
+
+                    // Note: since the correlation cookie is not protected against tampering, an unexpected
+                    // value may be present in the cookie payload and this call may return a string whose
+                    // length doesn't match the expected value. In any case, any tampering attempt will be
+                    // detected when comparing the resolved value with the expected value stored in the state.
+                    output = Encoding.UTF8.GetString(payload, index: 5, length);
+                    return true;
+                }
+
+                catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception))
+                {
+                    output = null;
+                    return false;
+                }
+            }
         }
     }
 
@@ -526,8 +533,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             var properties = context.Transaction.GetProperty<AuthenticationProperties>(typeof(AuthenticationProperties).FullName!);
             if (properties is { Items.Count: > 0 })
@@ -565,8 +572,7 @@ public static partial class OpenIddictClientAspNetCoreHandlers
                     context.Issuer = uri;
                 }
 
-                if (properties.Items.TryGetValue(Properties.Scope, out string? scope) &&
-                    !string.IsNullOrEmpty(scope))
+                if (properties.Items.TryGetValue(Properties.Scope, out string? scope) && !string.IsNullOrEmpty(scope))
                 {
                     context.Scopes.UnionWith(scope.Split(Separators.Space, StringSplitOptions.RemoveEmptyEntries));
                 }
@@ -633,8 +639,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             if (!request.IsHttps)
             {
@@ -785,8 +791,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Resolve the cookie builder from the ASP.NET Core integration options.
             var builder = _options.CurrentValue.CookieBuilder;
@@ -818,7 +824,7 @@ public static partial class OpenIddictClientAspNetCoreHandlers
             Debug.Assert(written == count, SR.FormatID4016(written, count));
 
             // Add the correlation cookie to the response headers.
-            response.Cookies.Append(name, Base64UrlEncoder.Encode(payload), options);
+            response.Cookies.Append(name, Base64Url.EncodeToString(payload), options);
 
             return ValueTask.CompletedTask;
         }
@@ -849,8 +855,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             var properties = context.Transaction.GetProperty<AuthenticationProperties>(typeof(AuthenticationProperties).FullName!);
             if (properties is { Items.Count: > 0 })
@@ -946,8 +952,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var request = context.Transaction.GetHttpRequest() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var request = context.Transaction.GetHttpRequest()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             if (!request.IsHttps)
             {
@@ -1008,8 +1014,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Resolve the cookie builder from the ASP.NET Core integration options.
             var builder = _options.CurrentValue.CookieBuilder;
@@ -1041,7 +1047,7 @@ public static partial class OpenIddictClientAspNetCoreHandlers
             Debug.Assert(written == count, SR.FormatID4016(written, count));
 
             // Add the correlation cookie to the response headers.
-            response.Cookies.Append(name, Base64UrlEncoder.Encode(payload), options);
+            response.Cookies.Append(name, Base64Url.EncodeToString(payload), options);
 
             return ValueTask.CompletedTask;
         }
@@ -1102,8 +1108,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             Debug.Assert(context.Transaction.Response is not null, SR.GetResourceString(SR.ID4007));
 
@@ -1142,8 +1148,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             // Prevent the response from being cached.
             response.Headers[HeaderNames.CacheControl] = "no-store";
@@ -1220,8 +1226,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             Debug.Assert(context.Transaction.Response is not null, SR.GetResourceString(SR.ID4007));
 
@@ -1273,8 +1279,8 @@ public static partial class OpenIddictClientAspNetCoreHandlers
 
             // This handler only applies to ASP.NET Core requests. If the HTTP context cannot be resolved,
             // this may indicate that the request was incorrectly processed by another server stack.
-            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
+            var response = context.Transaction.GetHttpRequest()?.HttpContext.Response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0114));
 
             Debug.Assert(context.Transaction.Response is not null, SR.GetResourceString(SR.ID4007));
 

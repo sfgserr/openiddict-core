@@ -5,6 +5,7 @@
  */
 
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.DataProtection;
 using OpenIddict.Client.DataProtection;
 
@@ -46,6 +47,7 @@ public sealed class OpenIddictClientDataProtectionBuilder
     /// <param name="configuration">The delegate used to configure the OpenIddict options.</param>
     /// <remarks>This extension can be safely called multiple times.</remarks>
     /// <returns>The <see cref="OpenIddictClientDataProtectionBuilder"/> instance.</returns>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
     public OpenIddictClientDataProtectionBuilder Configure(Action<OpenIddictClientDataProtectionOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -89,7 +91,7 @@ public sealed class OpenIddictClientDataProtectionBuilder
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public override bool Equals(object? obj) => base.Equals(obj);
+    public override bool Equals([NotNullWhen(true)] object? obj) => base.Equals(obj);
 
     /// <inheritdoc/>
     [EditorBrowsable(EditorBrowsableState.Never)]

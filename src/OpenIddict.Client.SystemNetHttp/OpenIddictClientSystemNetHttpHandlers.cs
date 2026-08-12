@@ -85,8 +85,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
                 var identifier = OpenIddictClientSystemNetHttpContext.ComputeStableId(OpenIddictClientSystemNetHttpContext.Current);
 
                 var client = _factory.CreateClient(
-                    $"{typeof(OpenIddictClientSystemNetHttpOptions).Assembly.GetName().Name}:{identifier}") ??
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0174));
+                    $"{typeof(OpenIddictClientSystemNetHttpOptions).Assembly.GetName().Name}:{identifier}")
+                    ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0174));
 
                 // Create and store the HttpClient in the transaction properties.
                 context.Transaction.SetProperty(typeof(HttpClient).FullName!, client);
@@ -183,11 +183,11 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 #if NET
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
-            var client = context.Transaction.GetHttpClient() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0372));
+            var client = context.Transaction.GetHttpClient()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0372));
 
             // When supported, import the HTTP version and version policy from the client instance.
             request.Version = client.DefaultRequestVersion;
@@ -221,8 +221,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(MediaTypes.Json));
             request.Headers.AcceptCharset.Add(new StringWithQualityHeaderValue(Charsets.Utf8));
@@ -263,8 +263,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // Some authorization servers are known to aggressively check user agents and encourage
             // developers to use unique user agents. While a default user agent is always added,
@@ -314,8 +314,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // Attach the contact address specified in the options, if available.
             request.Headers.From = _options.CurrentValue.ContactAddress?.ToString();
@@ -349,8 +349,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // Note: don't overwrite the authorization header if one was already set by another handler.
             if (request.Headers.Authorization is null &&
@@ -374,7 +374,7 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
             return ValueTask.CompletedTask;
 
             static string? EscapeDataString(string? value)
-                => value is not null ? Uri.EscapeDataString(value).Replace("%20", "+") : null;
+                => value is not null ? Uri.EscapeDataString(value).Replace("%20", "+", StringComparison.Ordinal) : null;
         }
     }
 
@@ -403,8 +403,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             if (context.Transaction.Request.Count is 0)
             {
@@ -417,7 +417,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
                 request.RequestUri = OpenIddictHelpers.AddQueryStringParameters(request.RequestUri,
                     context.Transaction.Request.GetParameters().ToDictionary(
                         static parameter => parameter.Key,
-                        static parameter => (StringValues) parameter.Value));
+                        static parameter => (StringValues) parameter.Value,
+                        StringComparer.Ordinal));
             }
 
             // For POST requests, attach the request parameters to the request form by default.
@@ -458,12 +459,12 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // Note: a "using" statement is deliberately used here to dispose of the client in this handler.
-            using var client = context.Transaction.GetHttpClient() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0372));
+            using var client = context.Transaction.GetHttpClient()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0372));
 
             HttpResponseMessage response;
 
@@ -491,8 +492,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
             }
 
             // Store the HttpResponseMessage in the transaction properties.
-            context.Transaction.SetProperty(typeof(HttpResponseMessage).FullName!, response ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0175)));
+            context.Transaction.SetProperty(typeof(HttpResponseMessage).FullName!, response
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0175)));
         }
     }
 
@@ -519,8 +520,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP request cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var request = context.Transaction.GetHttpRequestMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var request = context.Transaction.GetHttpRequestMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             request.Dispose();
 
@@ -576,8 +577,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP response cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var response = context.Transaction.GetHttpResponseMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var response = context.Transaction.GetHttpResponseMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // If no Content-Encoding header was returned, keep the response stream as-is.
             if (response.Content is not { Headers.ContentEncoding.Count: > 0 })
@@ -609,9 +610,9 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
                     continue;
                 }
 
-                else if (string.Equals(encoding, ContentEncodings.Gzip, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(encoding, ContentEncodings.Gzip, StringComparison.OrdinalIgnoreCase))
                 {
-                    stream ??= await response.Content.ReadAsStreamAsync();
+                    stream ??= await response.Content.ReadAsStreamAsync().WaitAsync(context.CancellationToken);
                     stream = new GZipStream(stream, CompressionMode.Decompress);
                 }
 
@@ -625,13 +626,13 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
                 // For more information, read https://www.rfc-editor.org/rfc/rfc9110.html#name-deflate-coding.
                 else if (string.Equals(encoding, ContentEncodings.Deflate, StringComparison.OrdinalIgnoreCase))
                 {
-                    stream ??= await response.Content.ReadAsStreamAsync();
+                    stream ??= await response.Content.ReadAsStreamAsync().WaitAsync(context.CancellationToken);
                     stream = new ZLibStream(stream, CompressionMode.Decompress);
                 }
 
                 else if (string.Equals(encoding, ContentEncodings.Brotli, StringComparison.OrdinalIgnoreCase))
                 {
-                    stream ??= await response.Content.ReadAsStreamAsync();
+                    stream ??= await response.Content.ReadAsStreamAsync().WaitAsync(context.CancellationToken);
                     stream = new BrotliStream(stream, CompressionMode.Decompress);
                 }
 #endif
@@ -655,7 +656,7 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
                 // (e.g if the JSON deserialization process fails, the stream is read as a string
                 // during a second pass a second time for logging/debuggability purposes).
                 var content = new StreamContent(stream);
-                await content.LoadIntoBufferAsync();
+                await content.LoadIntoBufferAsync(context.CancellationToken);
 
                 // Copy the headers from the original content to the new instance.
                 foreach (var header in response.Content.Headers)
@@ -702,8 +703,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP response cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var response = context.Transaction.GetHttpResponseMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var response = context.Transaction.GetHttpResponseMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // If the returned Content-Type doesn't indicate the response has a JSON payload,
             // ignore it and allow other handlers in the pipeline to process the HTTP response.
@@ -728,7 +729,7 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
             catch (Exception exception) when (!OpenIddictHelpers.IsFatal(exception))
             {
                 context.Logger.LogError(6183, exception, SR.GetResourceString(SR.ID6183),
-                    await response.Content.ReadAsStringAsync());
+                    await response.Content.ReadAsStringAsync(context.CancellationToken));
 
                 context.Reject(
                     error: Errors.ServerError,
@@ -778,8 +779,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP response cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var response = context.Transaction.GetHttpResponseMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var response = context.Transaction.GetHttpResponseMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             if (response.Headers.WwwAuthenticate.Count is 0)
             {
@@ -904,8 +905,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP response cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var response = context.Transaction.GetHttpResponseMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var response = context.Transaction.GetHttpResponseMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // Only process an empty response if no Content-Type header is attached to the
             // HTTP response and the Content-Length header is not present or set to 0.
@@ -941,15 +942,15 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP response cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var response = context.Transaction.GetHttpResponseMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var response = context.Transaction.GetHttpResponseMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             // At this stage, return a generic error based on the HTTP status code if no
             // error could be extracted from the payload or from the WWW-Authenticate header.
             if (!response.IsSuccessStatusCode && string.IsNullOrEmpty(context.Transaction.Response?.Error))
             {
                 context.Logger.LogError(6184, SR.GetResourceString(SR.ID6184), response.StatusCode,
-                    await response.Content.ReadAsStringAsync());
+                    await response.Content.ReadAsStringAsync(context.CancellationToken));
 
                 context.Reject(
                     error: (int) response.StatusCode switch
@@ -973,7 +974,7 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
             if (context.Transaction.Response is null)
             {
                 context.Logger.LogError(6185, SR.GetResourceString(SR.ID6185), response.StatusCode,
-                    response.Content.Headers.ContentType, await response.Content.ReadAsStringAsync());
+                    response.Content.Headers.ContentType, await response.Content.ReadAsStringAsync(context.CancellationToken));
 
                 context.Reject(
                     error: Errors.ServerError,
@@ -1008,8 +1009,8 @@ public static partial class OpenIddictClientSystemNetHttpHandlers
 
             // This handler only applies to System.Net.Http requests. If the HTTP response cannot be resolved,
             // this may indicate that the request was incorrectly processed by another client stack.
-            var response = context.Transaction.GetHttpResponseMessage() ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
+            var response = context.Transaction.GetHttpResponseMessage()
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0173));
 
             response.Dispose();
 

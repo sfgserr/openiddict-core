@@ -16,7 +16,7 @@ namespace OpenIddict.Core;
 /// <summary>
 /// Provides methods allowing to cache authorizations after retrieving them from the store.
 /// </summary>
-/// <typeparam name="TAuthorization">The type of the Authorization entity.</typeparam>
+/// <typeparam name="TAuthorization">The type of the authorization entity.</typeparam>
 public sealed class OpenIddictAuthorizationCache<TAuthorization> : IOpenIddictAuthorizationCache<TAuthorization>, IDisposable where TAuthorization : class
 {
     private readonly MemoryCache _cache;
@@ -84,13 +84,12 @@ public sealed class OpenIddictAuthorizationCache<TAuthorization> : IOpenIddictAu
 
     /// <inheritdoc/>
     public async IAsyncEnumerable<TAuthorization> FindAsync(
-        string? subject, string? client,
-        string? status, string? type,
-        ImmutableArray<string>? scopes, [EnumeratorCancellation] CancellationToken cancellationToken)
+        (string? Subject, string? ApplicationId, string? Status,
+         string? Type, ImmutableArray<string>? RequiredScopes) query, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Note: this method is only partially cached.
 
-        await foreach (var authorization in _store.FindAsync(subject, client, status, type, scopes, cancellationToken))
+        await foreach (var authorization in _store.FindAsync(query, cancellationToken))
         {
             await AddAsync(authorization, cancellationToken);
 
@@ -238,8 +237,8 @@ public sealed class OpenIddictAuthorizationCache<TAuthorization> : IOpenIddictAu
 
         if (authorization is not null)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(authorization, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(authorization, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = 1L;
@@ -261,8 +260,8 @@ public sealed class OpenIddictAuthorizationCache<TAuthorization> : IOpenIddictAu
 
         foreach (var authorization in authorizations)
         {
-            entry.AddExpirationToken(await CreateExpirationSignalAsync(authorization, cancellationToken) ??
-                throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
+            entry.AddExpirationToken(await CreateExpirationSignalAsync(authorization, cancellationToken)
+                ?? throw new InvalidOperationException(SR.GetResourceString(SR.ID0197)));
         }
 
         entry.Size = authorizations.Length;
@@ -276,7 +275,7 @@ public sealed class OpenIddictAuthorizationCache<TAuthorization> : IOpenIddictAu
     /// <param name="authorization">The authorization associated with the expiration signal.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
     /// <returns>
-    /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
+    /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
     /// whose result returns an expiration signal for the specified authorization.
     /// </returns>
     private async ValueTask<IChangeToken> CreateExpirationSignalAsync(TAuthorization authorization, CancellationToken cancellationToken)

@@ -36,7 +36,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceApplicationManager(typeof(ClosedGenericApplicationManager)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceApplicationManager(typeof(object)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         var descriptor = Assert.Single(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(OpenIddictApplicationManager<>));
         Assert.Equal(typeof(OpenGenericApplicationManager<>), descriptor.ImplementationType);
     }
@@ -81,7 +81,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceAuthorizationManager(typeof(ClosedGenericAuthorizationManager)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceAuthorizationManager(typeof(object)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -110,9 +110,54 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         var descriptor = Assert.Single(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(OpenIddictAuthorizationManager<>));
         Assert.Equal(typeof(OpenGenericAuthorizationManager<>), descriptor.ImplementationType);
+    }
+
+    [Fact]
+    public void ReplaceResourceManager_ThrowsAnExceptionForClosedSourceManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act and assert
+        var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceResourceManager(typeof(ClosedGenericResourceManager)));
+
+        Assert.Equal("type", exception.ParamName);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplaceResourceManager_ThrowsAnExceptionForInvalidManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act and assert
+        var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceResourceManager(typeof(object)));
+
+        Assert.Equal("type", exception.ParamName);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplaceResourceManager_OverridesDefaultOpenGenericManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.ReplaceResourceManager(typeof(OpenGenericResourceManager<>));
+
+        // Assert
+        var descriptor = Assert.Single(services, service =>
+            service.Lifetime is ServiceLifetime.Scoped &&
+            service.ServiceType == typeof(OpenIddictResourceManager<>));
+        Assert.Equal(typeof(OpenGenericResourceManager<>), descriptor.ImplementationType);
     }
 
     [Fact]
@@ -126,7 +171,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceScopeManager(typeof(ClosedGenericScopeManager)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -140,7 +185,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceScopeManager(typeof(object)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -155,9 +200,54 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         var descriptor = Assert.Single(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(OpenIddictScopeManager<>));
         Assert.Equal(typeof(OpenGenericScopeManager<>), descriptor.ImplementationType);
+    }
+
+    [Fact]
+    public void ReplaceSessionManager_ThrowsAnExceptionForClosedSourceManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act and assert
+        var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceSessionManager(typeof(ClosedGenericSessionManager)));
+
+        Assert.Equal("type", exception.ParamName);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplaceSessionManager_ThrowsAnExceptionForInvalidManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act and assert
+        var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceSessionManager(typeof(object)));
+
+        Assert.Equal("type", exception.ParamName);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplaceSessionManager_OverridesDefaultOpenGenericManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.ReplaceSessionManager(typeof(OpenGenericSessionManager<>));
+
+        // Assert
+        var descriptor = Assert.Single(services, service =>
+            service.Lifetime is ServiceLifetime.Scoped &&
+            service.ServiceType == typeof(OpenIddictSessionManager<>));
+        Assert.Equal(typeof(OpenGenericSessionManager<>), descriptor.ImplementationType);
     }
 
     [Fact]
@@ -171,7 +261,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceTokenManager(typeof(ClosedGenericTokenManager)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -185,7 +275,7 @@ public class OpenIddictCoreBuilderTests
         var exception = Assert.Throws<ArgumentException>(() => builder.ReplaceTokenManager(typeof(object)));
 
         Assert.Equal("type", exception.ParamName);
-        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message);
+        Assert.StartsWith(SR.GetResourceString(SR.ID0232), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -200,7 +290,7 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         var descriptor = Assert.Single(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(OpenIddictTokenManager<>));
         Assert.Equal(typeof(OpenGenericTokenManager<>), descriptor.ImplementationType);
     }
@@ -450,7 +540,7 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictApplicationManager) &&
             service.ImplementationFactory is not null);
     }
@@ -467,8 +557,25 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictAuthorizationManager) &&
+            service.ImplementationFactory is not null);
+    }
+
+    [Fact]
+    public void SetDefaultResourceEntity_ReplacesUntypedManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.SetDefaultResourceEntity<CustomResource>();
+
+        // Assert
+        Assert.Contains(services, service =>
+            service.Lifetime is ServiceLifetime.Scoped &&
+            service.ServiceType == typeof(IOpenIddictResourceManager) &&
             service.ImplementationFactory is not null);
     }
 
@@ -484,8 +591,25 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictScopeManager) &&
+            service.ImplementationFactory is not null);
+    }
+
+    [Fact]
+    public void SetDefaultSessionEntity_ReplacesUntypedManager()
+    {
+        // Arrange
+        var services = CreateServices();
+        var builder = CreateBuilder(services);
+
+        // Act
+        builder.SetDefaultSessionEntity<CustomSession>();
+
+        // Assert
+        Assert.Contains(services, service =>
+            service.Lifetime is ServiceLifetime.Scoped &&
+            service.ServiceType == typeof(IOpenIddictSessionManager) &&
             service.ImplementationFactory is not null);
     }
 
@@ -501,7 +625,7 @@ public class OpenIddictCoreBuilderTests
 
         // Assert
         Assert.Contains(services, service =>
-            service.Lifetime == ServiceLifetime.Scoped &&
+            service.Lifetime is ServiceLifetime.Scoped &&
             service.ServiceType == typeof(IOpenIddictTokenManager) &&
             service.ImplementationFactory is not null);
     }
@@ -516,12 +640,14 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         return services;
     }
 
-    private class CustomApplication { }
-    private class CustomAuthorization { }
-    private class CustomScope { }
-    private class CustomToken { }
+    private sealed class CustomApplication;
+    private sealed class CustomAuthorization;
+    private sealed class CustomResource;
+    private sealed class CustomScope;
+    private sealed class CustomSession;
+    private sealed class CustomToken;
 
-    private class ClosedGenericApplicationManager : OpenIddictApplicationManager<CustomApplication>
+    private sealed class ClosedGenericApplicationManager : OpenIddictApplicationManager<CustomApplication>
     {
         public ClosedGenericApplicationManager(
             IOpenIddictApplicationCache<CustomApplication> cache,
@@ -533,7 +659,7 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class OpenGenericApplicationManager<TApplication> : OpenIddictApplicationManager<TApplication>
+    private sealed class OpenGenericApplicationManager<TApplication> : OpenIddictApplicationManager<TApplication>
         where TApplication : class
     {
         public OpenGenericApplicationManager(
@@ -546,7 +672,7 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class ClosedGenericAuthorizationManager : OpenIddictAuthorizationManager<CustomAuthorization>
+    private sealed class ClosedGenericAuthorizationManager : OpenIddictAuthorizationManager<CustomAuthorization>
     {
         public ClosedGenericAuthorizationManager(
             IOpenIddictAuthorizationCache<CustomAuthorization> cache,
@@ -558,7 +684,7 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class OpenGenericAuthorizationManager<TAuthorization> : OpenIddictAuthorizationManager<TAuthorization>
+    private sealed class OpenGenericAuthorizationManager<TAuthorization> : OpenIddictAuthorizationManager<TAuthorization>
         where TAuthorization : class
     {
         public OpenGenericAuthorizationManager(
@@ -571,7 +697,32 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class ClosedGenericScopeManager : OpenIddictScopeManager<CustomScope>
+    private sealed class ClosedGenericResourceManager : OpenIddictResourceManager<CustomResource>
+    {
+        public ClosedGenericResourceManager(
+            IOpenIddictResourceCache<CustomResource> cache,
+            ILogger<OpenIddictResourceManager<CustomResource>> logger,
+            IOptionsMonitor<OpenIddictCoreOptions> options,
+            IOpenIddictResourceStore<CustomResource> store)
+            : base(cache, logger, options, store)
+        {
+        }
+    }
+
+    private sealed class OpenGenericResourceManager<TResource> : OpenIddictResourceManager<TResource>
+        where TResource : class
+    {
+        public OpenGenericResourceManager(
+            IOpenIddictResourceCache<TResource> cache,
+            ILogger<OpenIddictResourceManager<TResource>> logger,
+            IOptionsMonitor<OpenIddictCoreOptions> options,
+            IOpenIddictResourceStore<TResource> store)
+            : base(cache, logger, options, store)
+        {
+        }
+    }
+
+    private sealed class ClosedGenericScopeManager : OpenIddictScopeManager<CustomScope>
     {
         public ClosedGenericScopeManager(
             IOpenIddictScopeCache<CustomScope> cache,
@@ -583,7 +734,7 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class OpenGenericScopeManager<TScope> : OpenIddictScopeManager<TScope>
+    private sealed class OpenGenericScopeManager<TScope> : OpenIddictScopeManager<TScope>
         where TScope : class
     {
         public OpenGenericScopeManager(
@@ -596,7 +747,32 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class ClosedGenericTokenManager : OpenIddictTokenManager<CustomToken>
+    private sealed class ClosedGenericSessionManager : OpenIddictSessionManager<CustomSession>
+    {
+        public ClosedGenericSessionManager(
+            IOpenIddictSessionCache<CustomSession> cache,
+            ILogger<OpenIddictSessionManager<CustomSession>> logger,
+            IOptionsMonitor<OpenIddictCoreOptions> options,
+            IOpenIddictSessionStore<CustomSession> store)
+            : base(cache, logger, options, store)
+        {
+        }
+    }
+
+    private sealed class OpenGenericSessionManager<TSession> : OpenIddictSessionManager<TSession>
+        where TSession : class
+    {
+        public OpenGenericSessionManager(
+            IOpenIddictSessionCache<TSession> cache,
+            ILogger<OpenIddictSessionManager<TSession>> logger,
+            IOptionsMonitor<OpenIddictCoreOptions> options,
+            IOpenIddictSessionStore<TSession> store)
+            : base(cache, logger, options, store)
+        {
+        }
+    }
+
+    private sealed class ClosedGenericTokenManager : OpenIddictTokenManager<CustomToken>
     {
         public ClosedGenericTokenManager(
             IOpenIddictTokenCache<CustomToken> cache,
@@ -608,7 +784,7 @@ private static OpenIddictCoreBuilder CreateBuilder(IServiceCollection services)
         }
     }
 
-    private class OpenGenericTokenManager<TToken> : OpenIddictTokenManager<TToken>
+    private sealed class OpenGenericTokenManager<TToken> : OpenIddictTokenManager<TToken>
         where TToken : class
     {
         public OpenGenericTokenManager(
